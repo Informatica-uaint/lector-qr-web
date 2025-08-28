@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration name="Docker Compose Prod" type="docker-deploy" factoryName="docker-compose.yml" temporary="false">
+  <deployment type="docker-compose.yml">
+    <settings>
+      <option name="sourceFilePath" value="docker-compose.prod.yml" />
+      <option name="envFilePath" value=".env.prod" />
+    </settings>
+  </deployment>
+  <method v="2" />
+</configuration>

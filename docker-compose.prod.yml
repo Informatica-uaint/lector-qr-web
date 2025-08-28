@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  mysql-prod:
+    image: mysql:8.0
+    container_name: qr-mysql-prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DB}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+    restart: unless-stopped
+
+  api-prod:
+    image: ghcr.io/${GITHUB_REPOSITORY}/qr-backend:latest
+    container_name: qr-api-prod
+    environment:
+      MYSQL_HOST: mysql-prod
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DB}
+      MYSQL_PORT: 3306
+      PORT: 3001
+      NODE_ENV: production
+    ports:
+      - "3001:3001"
+    depends_on:
+      mysql-prod:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend-prod:
+    image: ghcr.io/${GITHUB_REPOSITORY}/qr-frontend:latest
+    container_name: qr-frontend-prod
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: ${API_BASE_URL:-http://localhost:3001/api}
+    ports:
+      - "3020:3020"
+    depends_on:
+      - api-prod
+    restart: unless-stopped
+
+volumes:
+  mysql_prod_data:

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration name="Docker Dev API Only" type="docker-deploy" factoryName="docker-compose.yml" temporary="false">
+  <deployment type="docker-compose.yml">
+    <settings>
+      <option name="sourceFilePath" value="docker-compose.dev.yml" />
+      <option name="envFilePath" value=".env.dev" />
+      <option name="services">
+        <list>
+          <option value="mysql-dev" />
+          <option value="api-dev" />
+        </list>
+      </option>
+    </settings>
+  </deployment>
+  <method v="2" />
+</configuration>
