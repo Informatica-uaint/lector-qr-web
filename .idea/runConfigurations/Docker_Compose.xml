@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration name="Docker Compose" type="docker-deploy" factoryName="docker-compose.yml" temporary="false">
+  <deployment type="docker-compose.yml">
+    <settings>
+      <option name="sourceFilePath" value="docker-compose.yml" />
+    </settings>
+  </deployment>
+  <method v="2" />
+</configuration>

@@ -1,0 +1,61 @@
+{
+  "name": "qr-lector-electron",
+  "version": "1.0.0",
+  "description": "Lector QR moderno con Electron + React para laboratorio informática",
+  "main": "public/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:next\" \"npm run dev:electron\"",
+    "dev:next": "next dev -p 3020",
+    "dev:electron": "wait-on http://localhost:3020 && electron .",
+    "build": "next build",
+    "build:electron": "npm run build && electron-builder",
+    "start": "next start",
+    "electron": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": [
+    "qr",
+    "scanner",
+    "electron",
+    "nextjs",
+    "laboratorio"
+  ],
+  "author": "UAI Lab Informatica",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4",
+    "wait-on": "^7.0.1"
+  },
+  "dependencies": {
+    "@zxing/library": "^0.20.0",
+    "autoprefixer": "^10.4.16",
+    "axios": "^1.11.0",
+    "dotenv": "^16.3.1",
+    "next": "^13.5.6",
+    "postcss": "^8.4.31",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^4.11.0",
+    "tailwindcss": "^3.3.5"
+  },
+  "build": {
+    "appId": "com.uai.qr-lector",
+    "productName": "QR Lector Lab",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "public/main.js",
+      "public/preload.js",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.ico"
+    }
+  }
+}
