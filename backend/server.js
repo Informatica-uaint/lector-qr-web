@@ -65,17 +65,9 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Ruta por defecto
+// Ruta por defecto - redirect al frontend
 app.get('/', (req, res) => {
-  res.json({
-    message: 'QR Lector API - Laboratorio Informática UAI',
-    version: '1.0.0',
-    endpoints: {
-      health: '/health',
-      qr: '/api/qr',
-      database: '/api/db'
-    }
-  });
+  res.redirect(301, 'https://lector.lab.informaticauaint.com');
 });
 
 // Middleware de manejo de errores
