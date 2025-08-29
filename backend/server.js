@@ -10,10 +10,26 @@ const dbRoutes = require('./routes/database');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Configurar trust proxy para producción (detrás de load balancer/nginx)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Middleware de seguridad
 app.use(helmet());
+// Configurar CORS dinámicamente basado en el entorno
+const allowedOrigins = process.env.NODE_ENV === 'production' 
+  ? [
+      'https://lector.lab.informaticauaint.com',
+      'http://lector.lab.informaticauaint.com'
+    ]
+  : [
+      'http://localhost:3020', 
+      'http://127.0.0.1:3020'
+    ];
+
 app.use(cors({
-  origin: ['http://localhost:3020', 'http://127.0.0.1:3020', 'http://10.0.5.123:3020'], // Frontend URLs
+  origin: allowedOrigins,
   credentials: true
 }));
 
@@ -87,7 +103,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`🗄️ Base de datos: ${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT}/${process.env.MYSQL_DB}`);
   console.log(`🔗 Health check local: http://localhost:${PORT}/health`);
-  console.log(`🌐 Health check red: http://10.0.5.123:${PORT}/health`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🌐 Health check: https://api.lector.lab.informaticauaint.com/health`);
+  }
 });
 
 // Manejo de cierre graceful

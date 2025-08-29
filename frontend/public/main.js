@@ -15,7 +15,7 @@ app.commandLine.appendSwitch('--use-fake-ui-for-media-stream');
 app.commandLine.appendSwitch('--disable-web-security');
 
 // Configuración de la API
-const API_BASE_URL = process.env.API_BASE_URL || 'http://10.0.5.123:3002/api';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3002/api';
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
