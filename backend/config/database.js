@@ -51,12 +51,43 @@ class DatabaseManager {
   }
 
   async query(sql, params = []) {
+    const startTime = Date.now();
+    
     try {
+      // Log de la query (solo en desarrollo)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n🔍 [DB QUERY]');
+        console.log('📝 SQL:', sql);
+        if (params && params.length > 0) {
+          console.log('📋 Params:', params);
+        }
+      }
+      
       const connection = await this.getConnection();
       const [rows] = await connection.execute(sql, params);
+      
+      const duration = Date.now() - startTime;
+      
+      // Log del resultado (solo en desarrollo)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ Rows affected/returned:', Array.isArray(rows) ? rows.length : 1);
+        console.log('⏱️  Query duration:', `${duration}ms`);
+        console.log('🔚 [DB QUERY END]\n');
+      }
+      
       return rows;
     } catch (error) {
-      console.error('✗ Error ejecutando query:', error.message);
+      const duration = Date.now() - startTime;
+      
+      console.error('\n❌ [DB ERROR]');
+      console.error('📝 SQL:', sql);
+      if (params && params.length > 0) {
+        console.error('📋 Params:', params);
+      }
+      console.error('💥 Error:', error.message);
+      console.error('⏱️  Query duration:', `${duration}ms`);
+      console.error('🔚 [DB ERROR END]\n');
+      
       throw error;
     }
   }

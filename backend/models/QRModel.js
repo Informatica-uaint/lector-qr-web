@@ -112,7 +112,10 @@ class QRModel {
    */
   static async findUser(email) {
     try {
+      console.log('🔍 [FIND USER] Buscando usuario con email:', email);
+      
       // Buscar en usuarios_permitidos (ayudantes)
+      console.log('📋 [FIND USER] Buscando en tabla usuarios_permitidos...');
       let users = await dbManager.query(`
         SELECT id, nombre, apellido, email, TP as tipo, activo 
         FROM usuarios_permitidos 
@@ -120,19 +123,28 @@ class QRModel {
       `, [email]);
 
       if (users.length > 0) {
+        console.log('✅ [FIND USER] Usuario encontrado en usuarios_permitidos:', JSON.stringify(users[0]));
         return users[0];
       }
+      console.log('❌ [FIND USER] Usuario no encontrado en usuarios_permitidos');
 
       // Si no se encuentra, buscar en usuarios_estudiantes
+      console.log('📋 [FIND USER] Buscando en tabla usuarios_estudiantes...');
       users = await dbManager.query(`
         SELECT id, nombre, apellido, email, TP as tipo, activo 
         FROM usuarios_estudiantes 
         WHERE email = ? AND activo = 1
       `, [email]);
 
-      return users.length > 0 ? users[0] : null;
+      if (users.length > 0) {
+        console.log('✅ [FIND USER] Usuario encontrado en usuarios_estudiantes:', JSON.stringify(users[0]));
+        return users[0];
+      }
+      
+      console.log('❌ [FIND USER] Usuario no encontrado en ninguna tabla');
+      return null;
     } catch (error) {
-      console.error('Error buscando usuario:', error);
+      console.error('💥 [FIND USER] Error buscando usuario:', error);
       throw error;
     }
   }

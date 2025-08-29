@@ -9,8 +9,13 @@ app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('--disable-gpu');
 app.commandLine.appendSwitch('--disable-gpu-sandbox');
 
+// Enable media access
+app.commandLine.appendSwitch('--enable-media-stream');
+app.commandLine.appendSwitch('--use-fake-ui-for-media-stream');
+app.commandLine.appendSwitch('--disable-web-security');
+
 // Configuración de la API
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3002/api';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://10.0.5.123:3002/api';
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -20,7 +25,10 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false // Necesario para acceso a cámara local
+      webSecurity: false,
+      enableRemoteModule: false,
+      allowRunningInsecureContent: false,
+      experimentalFeatures: false
     },
     icon: path.join(__dirname, 'icon.ico'),
     title: 'QR Lector - Lab Informática UAI',
@@ -41,6 +49,12 @@ function createWindow() {
     if (isDev) {
       mainWindow.webContents.openDevTools();
     }
+    console.log('✓ Electron window ready');
+  });
+
+  // Debug console logs
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    console.log(`[Renderer] ${message}`);
   });
 
   return mainWindow;
@@ -48,6 +62,26 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+});
+
+// Permitir permisos de medios
+app.whenReady().then(() => {
+  const { session } = require('electron');
+  
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'camera' || permission === 'microphone' || permission === 'media') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+  
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    if (permission === 'camera' || permission === 'microphone' || permission === 'media') {
+      return true;
+    }
+    return false;
+  });
 });
 
 // Funciones de API

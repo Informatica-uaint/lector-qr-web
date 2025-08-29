@@ -31,6 +31,56 @@ export default function QRLector() {
       // Inicializar lector QR
       codeReader.current = new BrowserQRCodeReader();
       
+      // Polyfill completo para navigator.mediaDevices
+      if (!navigator.mediaDevices) {
+        console.warn('navigator.mediaDevices no disponible, creando polyfill...');
+        navigator.mediaDevices = {};
+      }
+      
+      // Polyfill para getUserMedia
+      if (!navigator.mediaDevices.getUserMedia) {
+        console.warn('getUserMedia no disponible, usando polyfill...');
+        
+        // Debug: verificar qué APIs están disponibles
+        console.log('navigator.getUserMedia:', !!navigator.getUserMedia);
+        console.log('navigator.webkitGetUserMedia:', !!navigator.webkitGetUserMedia);
+        console.log('navigator.mozGetUserMedia:', !!navigator.mozGetUserMedia);
+        console.log('navigator.msGetUserMedia:', !!navigator.msGetUserMedia);
+        
+        // Buscar getUserMedia en diferentes prefijos
+        const getUserMedia = navigator.getUserMedia || 
+                           navigator.webkitGetUserMedia || 
+                           navigator.mozGetUserMedia || 
+                           navigator.msGetUserMedia;
+        
+        if (getUserMedia) {
+          console.log('✓ getUserMedia encontrado, creando polyfill...');
+          navigator.mediaDevices.getUserMedia = function(constraints) {
+            return new Promise((resolve, reject) => {
+              getUserMedia.call(navigator, constraints, resolve, reject);
+            });
+          };
+        } else {
+          console.error('✗ No se encontró ninguna versión de getUserMedia');
+          // Fallback final - solo para testing, no funcionará realmente
+          navigator.mediaDevices.getUserMedia = function(constraints) {
+            return Promise.reject(new Error('getUserMedia no está soportado en este navegador'));
+          };
+        }
+      } else {
+        console.log('✓ navigator.mediaDevices.getUserMedia ya disponible');
+      }
+      
+      // Polyfill para enumerateDevices
+      if (!navigator.mediaDevices.enumerateDevices) {
+        console.warn('enumerateDevices no disponible, usando polyfill...');
+        navigator.mediaDevices.enumerateDevices = function() {
+          return Promise.resolve([
+            { deviceId: 'default', kind: 'videoinput', label: 'Cámara por defecto' }
+          ]);
+        };
+      }
+      
       // Obtener dispositivos de cámara usando navigator.mediaDevices
       const videoDevices = await navigator.mediaDevices.enumerateDevices();
       const cameras = videoDevices.filter(device => device.kind === 'videoinput');
@@ -61,6 +111,18 @@ export default function QRLector() {
 
   const initializeVideoStream = async (deviceId) => {
     try {
+      // Verificar permisos primero (skip si no está disponible)
+      try {
+        const result = await navigator.permissions.query({ name: 'camera' });
+        console.log('Permission status:', result.state);
+        
+        if (result.state === 'denied') {
+          throw new Error('Permisos de cámara denegados');
+        }
+      } catch (permError) {
+        console.warn('navigator.permissions no disponible, saltando verificación:', permError);
+      }
+      
       const constraints = {
         video: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -82,7 +144,19 @@ export default function QRLector() {
       console.log('Stream de video inicializado');
     } catch (error) {
       console.error('Error inicializando stream de video:', error);
-      setStatusMessage('Error accediendo a la cámara');
+      let errorMessage = 'Error accediendo a la cámara';
+      
+      if (error.name === 'NotAllowedError' || error.message.includes('denegados')) {
+        errorMessage = 'Permisos de cámara denegados - Verifique configuración';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'Cámara no encontrada';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Cámara en uso por otra aplicación';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Configuración de cámara no compatible';
+      }
+      
+      setStatusMessage(errorMessage);
       setCameraActive(false);
     }
   };

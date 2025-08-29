@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware de seguridad
 app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:3015', 'http://127.0.0.1:3015'], // Frontend URLs
+  origin: ['http://localhost:3020', 'http://127.0.0.1:3020', 'http://10.0.5.123:3020'], // Frontend URLs
   credentials: true
 }));
 
@@ -82,11 +82,12 @@ app.use('*', (req, res) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 QR Lector API ejecutándose en puerto ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV}`);
   console.log(`🗄️ Base de datos: ${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT}/${process.env.MYSQL_DB}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 Health check local: http://localhost:${PORT}/health`);
+  console.log(`🌐 Health check red: http://10.0.5.123:${PORT}/health`);
 });
 
 // Manejo de cierre graceful
