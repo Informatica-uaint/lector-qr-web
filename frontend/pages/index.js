@@ -203,13 +203,44 @@ export default function QRLector() {
     setStatusMessage('Escaneo pausado - Click REANUDAR para continuar');
   };
 
+  // Función para procesar QR según el entorno (Electron vs Web)
+  const processQRData = async (qrData) => {
+    const isElectron = window.electronAPI;
+    
+    if (isElectron) {
+      // Entorno Electron - usar IPC
+      console.log('🖥️ Procesando QR via Electron IPC');
+      return await window.electronAPI.database.processQR(qrData);
+    } else {
+      // Entorno Web - usar HTTP directo
+      console.log('🌐 Procesando QR via HTTP API');
+      const apiUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://api.lector.lab.informaticauaint.com/api/qr/process'
+        : 'http://localhost:3002/api/qr/process';
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ qrData })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
+    }
+  };
+
   const handleQRResult = async (qrData) => {
     try {
       console.log('QR detectado:', qrData);
       setStatusMessage('Procesando QR...');
       
-      // Procesar QR con la API
-      const result = await window.electronAPI?.database?.processQR(qrData);
+      // Procesar QR según el entorno
+      const result = await processQRData(qrData);
       
       if (result) {
         setLastResult({
@@ -384,13 +415,15 @@ export default function QRLector() {
               </button>
             )}
             
-            <button
-              onClick={() => window.electronAPI?.quitApp()}
-              className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold flex items-center gap-2"
-            >
-              <FiX />
-              SALIR
-            </button>
+            {window.electronAPI && (
+              <button
+                onClick={() => window.electronAPI.quitApp()}
+                className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold flex items-center gap-2"
+              >
+                <FiX />
+                SALIR
+              </button>
+            )}
           </div>
         </div>
 
