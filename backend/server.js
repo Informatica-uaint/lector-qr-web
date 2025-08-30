@@ -7,6 +7,7 @@ require('dotenv').config();
 const logger = require('./utils/logger');
 const qrRoutes = require('./routes/qr');
 const dbRoutes = require('./routes/database');
+const doorRoutes = require('./routes/door');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -61,6 +62,7 @@ app.use((req, res, next) => {
 // Rutas
 app.use('/api/qr', qrRoutes);
 app.use('/api/db', dbRoutes);
+app.use('/api/door', doorRoutes);
 
 // Ruta de health check
 app.get('/health', (req, res) => {

@@ -13,6 +13,7 @@ function QRLector() {
   const [lastResult, setLastResult] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [backendStatus, setBackendStatus] = useState('checking'); // 'connected', 'disconnected', 'checking'
+  const [assistantsStatus, setAssistantsStatus] = useState({ present: false, count: 0, loading: false });
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
@@ -24,9 +25,14 @@ function QRLector() {
     // Verificar conexión con backend cada 30 segundos
     const backendCheck = setInterval(checkBackendConnection, 30000);
     
+    // Verificar estado de ayudantes cada 60 segundos
+    const assistantsCheck = setInterval(checkAssistantsStatus, 60000);
+    checkAssistantsStatus(); // Check inicial
+    
     return () => {
       stopScanning();
       clearInterval(backendCheck);
+      clearInterval(assistantsCheck);
       // Limpiar stream de video
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = videoRef.current.srcObject.getTracks();
@@ -284,8 +290,40 @@ function QRLector() {
         });
         
         if (result.success) {
-          setStatusMessage(`${result.tipo} registrada`);
-          logger.log(`✅ ACCESO REGISTRADO: ${result.tipo} - ${result.message}`);
+          // Verificar si hay mensaje especial de laboratorio cerrado
+          if (result.door?.specialMessage?.type === 'LABORATORIO_CERRADO') {
+            setStatusMessage('Laboratorio cerrado');
+            logger.log(`⚠️ LABORATORIO CERRADO: ${result.message}`);
+            logger.debug('Door status:', result.door);
+            
+            // Crear resultado personalizado para mostrar mensaje especial
+            setLastResult({
+              ...result,
+              success: true, // Para que no se muestre como error
+              specialType: 'LABORATORIO_CERRADO',
+              displayTitle: result.door.specialMessage.title,
+              displayMessage: result.door.specialMessage.message,
+              timestamp: result.timestamp || new Date().toLocaleTimeString()
+            });
+          } else {
+            setStatusMessage(`${result.tipo} registrada`);
+            logger.log(`✅ ACCESO REGISTRADO: ${result.tipo} - ${result.message}`);
+            
+            // Verificar si la puerta debe abrirse
+            if (result.door?.shouldOpen) {
+              logger.log('🚪 Puerta autorizada para abrir');
+              // Aquí podrías agregar lógica adicional para indicar apertura de puerta
+            }
+            
+            // Actualizar estado de ayudantes si está disponible
+            if (result.door && typeof result.door.assistantsPresent === 'boolean') {
+              setAssistantsStatus(prev => ({
+                ...prev,
+                present: result.door.assistantsPresent,
+                lastCheck: new Date().toLocaleTimeString()
+              }));
+            }
+          }
           
           // Pausar escaneo temporalmente y mostrar pantalla de confirmación
           stopScanning();
@@ -357,6 +395,45 @@ function QRLector() {
       
       logger.debug('Backend URL (Web):', finalUrl);
       return finalUrl;
+    }
+  };
+
+  // Verificar estado de ayudantes en laboratorio
+  const checkAssistantsStatus = async () => {
+    const isElectron = typeof window !== 'undefined' && window.electronAPI;
+    
+    try {
+      logger.debug('👥 Checking assistants status...');
+      setAssistantsStatus(prev => ({ ...prev, loading: true }));
+      
+      const baseUrl = getBackendURL();
+      const assistantsUrl = `${baseUrl}/door/assistants-status`;
+      
+      logger.debug('Assistants check URL:', assistantsUrl);
+      
+      const response = await fetch(assistantsUrl, {
+        method: 'GET',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        logger.debug('Assistants status result:', data);
+        
+        setAssistantsStatus({
+          present: data.assistantsPresent || false,
+          count: data.count || 0,
+          loading: false,
+          lastCheck: new Date().toLocaleTimeString()
+        });
+      } else {
+        logger.warn('Failed to get assistants status:', response.status);
+        setAssistantsStatus(prev => ({ ...prev, loading: false }));
+      }
+      
+    } catch (error) {
+      logger.error('Error checking assistants status:', error.message);
+      setAssistantsStatus(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -437,12 +514,7 @@ function QRLector() {
           </div>
           
           <div className="flex items-center gap-4">
-            {/* Indicadores de estado */}
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${cameraActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm">Cámara</span>
-            </div>
-            
+            {/* Header sin indicadores */}
           </div>
         </div>
       </div>
@@ -583,6 +655,17 @@ function QRLector() {
                   {isScanning ? 'ACTIVO' : 'INACTIVO'}
                 </span>
               </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300">Ayudantes:</span>
+                <span className={`font-semibold ${
+                  assistantsStatus.loading ? 'text-yellow-400 animate-pulse' :
+                  assistantsStatus.count === 0 ? 'text-red-400' :
+                  assistantsStatus.count === 1 ? 'text-yellow-400' : 'text-green-400'
+                }`}>
+                  {assistantsStatus.loading ? 'VERIFICANDO...' : assistantsStatus.count}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -603,17 +686,26 @@ function QRLector() {
       {showConfirmation && lastResult && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center ${
           lastResult.success ? (
-            lastResult.tipo === 'Entrada' 
-              ? 'bg-green-500' 
-              : 'bg-orange-500'
+            lastResult.specialType === 'LABORATORIO_CERRADO'
+              ? 'bg-yellow-600'  // Amarillo/naranja para laboratorio cerrado
+              : lastResult.tipo === 'Entrada' 
+                ? 'bg-green-500' 
+                : 'bg-orange-500'
           ) : 'bg-red-500'
         } bg-opacity-95 backdrop-blur-sm`}>
           <div className="text-center text-white">
             <div className="text-9xl font-black mb-8 tracking-wider">
-              {lastResult.success ? lastResult.tipo?.toUpperCase() : 'ERROR'}
+              {lastResult.success ? (
+                lastResult.specialType === 'LABORATORIO_CERRADO'
+                  ? lastResult.displayTitle?.toUpperCase() || 'LABORATORIO CERRADO'
+                  : lastResult.tipo?.toUpperCase()
+              ) : 'ERROR'}
             </div>
             <div className="text-4xl font-bold mb-4">
-              {lastResult.message}
+              {lastResult.specialType === 'LABORATORIO_CERRADO' 
+                ? lastResult.displayMessage || 'Tocar Timbre'
+                : lastResult.message
+              }
             </div>
             <div className="text-2xl opacity-90">
               {lastResult.timestamp}
@@ -621,6 +713,12 @@ function QRLector() {
             {!lastResult.success && lastResult.email && (
               <div className="text-xl opacity-75 mt-2">
                 {lastResult.email}
+              </div>
+            )}
+            {/* Mostrar nombre del usuario también en caso de laboratorio cerrado */}
+            {lastResult.specialType === 'LABORATORIO_CERRADO' && lastResult.message && (
+              <div className="text-xl opacity-75 mt-2">
+                {lastResult.message}
               </div>
             )}
           </div>

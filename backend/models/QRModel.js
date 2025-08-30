@@ -117,6 +117,9 @@ class QRModel {
       const registroId = await this.insertRegistro(registroData);
       logger.log(`✓ Registro insertado con ID: ${registroId}`);
 
+      // Verificar si se debe abrir la puerta basado en lógica de negocio
+      let doorStatus = await this.checkDoorAccess(qrTipoUsuario, tipoRegistro);
+      
       const result = {
         success: true,
         message: `${name} ${surname}`,
@@ -125,7 +128,8 @@ class QRModel {
         fecha: fechaHoy,
         hora: now.toTimeString().split(' ')[0],
         timestamp: now.toLocaleTimeString(),
-        registro_id: registroId
+        registro_id: registroId,
+        door: doorStatus
       };
       
       logger.log('✅ QR procesado exitosamente:', result.message, result.tipo);
@@ -266,6 +270,177 @@ class QRModel {
       logger.error('Error obteniendo registros recientes:', error.message);
       logger.debug('Error stack:', error.stack);
       throw error;
+    }
+  }
+
+  /**
+   * Verifica si actualmente hay ayudantes en el laboratorio
+   * @returns {boolean} True si hay ayudantes presentes
+   */
+  static async checkAssistantsPresent() {
+    try {
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      logger.debug(`🔍 Verificando ayudantes presentes en fecha: ${fechaHoy}`);
+
+      // Query para obtener todos los registros de ayudantes del día, ordenados por hora
+      const registros = await dbManager.query(`
+        SELECT email, tipo, hora, nombre, apellido
+        FROM registros 
+        WHERE fecha = ? 
+        ORDER BY hora ASC
+      `, [fechaHoy]);
+
+      logger.debug(`📊 Total registros ayudantes hoy: ${registros.length}`);
+
+      // Agrupar registros por email para determinar el último estado
+      const ayudantesStatus = {};
+      
+      registros.forEach(registro => {
+        ayudantesStatus[registro.email] = {
+          ultimoTipo: registro.tipo,
+          ultimaHora: registro.hora,
+          nombre: registro.nombre,
+          apellido: registro.apellido
+        };
+      });
+
+      // Contar ayudantes que tienen "Entrada" como último registro
+      const ayudantesDentro = Object.values(ayudantesStatus)
+        .filter(status => status.ultimoTipo === 'Entrada');
+
+      const cantidadAyudantes = ayudantesDentro.length;
+      
+      logger.log(`👥 Ayudantes actualmente en laboratorio: ${cantidadAyudantes}`);
+      
+      if (cantidadAyudantes > 0) {
+        logger.debug('Ayudantes presentes:', ayudantesDentro.map(a => `${a.nombre} ${a.apellido}`));
+      }
+
+      return cantidadAyudantes > 0;
+    } catch (error) {
+      logger.error('Error verificando ayudantes presentes:', error.message);
+      logger.debug('Error stack:', error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene el detalle de ayudantes actualmente presentes
+   * @returns {Array} Lista de ayudantes presentes con detalles
+   */
+  static async getAssistantsPresent() {
+    try {
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      logger.debug(`📋 Obteniendo detalles de ayudantes presentes: ${fechaHoy}`);
+
+      const registros = await dbManager.query(`
+        SELECT email, tipo, hora, nombre, apellido
+        FROM registros 
+        WHERE fecha = ? 
+        ORDER BY hora ASC
+      `, [fechaHoy]);
+
+      const ayudantesStatus = {};
+      
+      registros.forEach(registro => {
+        ayudantesStatus[registro.email] = {
+          email: registro.email,
+          ultimoTipo: registro.tipo,
+          ultimaHora: registro.hora,
+          nombre: registro.nombre,
+          apellido: registro.apellido
+        };
+      });
+
+      const ayudantesDentro = Object.values(ayudantesStatus)
+        .filter(status => status.ultimoTipo === 'Entrada')
+        .map(ayudante => ({
+          email: ayudante.email,
+          nombre: ayudante.nombre,
+          apellido: ayudante.apellido,
+          horaEntrada: ayudante.ultimaHora
+        }));
+
+      logger.debug(`✅ Encontrados ${ayudantesDentro.length} ayudantes presentes`);
+      return ayudantesDentro;
+    } catch (error) {
+      logger.error('Error obteniendo detalles de ayudantes:', error.message);
+      logger.debug('Error stack:', error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica las condiciones de acceso a la puerta según tipo de usuario y acción
+   * @param {string} tipoUsuario - AYUDANTE o ESTUDIANTE
+   * @param {string} tipoRegistro - Entrada o Salida
+   * @returns {Object} Estado del acceso a la puerta
+   */
+  static async checkDoorAccess(tipoUsuario, tipoRegistro) {
+    try {
+      logger.debug(`🚪 Verificando acceso puerta: ${tipoUsuario} - ${tipoRegistro}`);
+
+      let doorResult = {
+        shouldOpen: false,
+        reason: '',
+        assistantsPresent: false,
+        specialMessage: null
+      };
+
+      // Solo verificar apertura de puerta para "Entrada"
+      if (tipoRegistro !== 'Entrada') {
+        doorResult.reason = 'Salida registrada - no se requiere apertura';
+        doorResult.shouldOpen = false;
+        logger.debug('❌ No se abre puerta - es una salida');
+        return doorResult;
+      }
+
+      if (tipoUsuario === 'AYUDANTE') {
+        // Ayudantes siempre pueden abrir la puerta al entrar
+        doorResult.shouldOpen = true;
+        doorResult.reason = 'Ayudante autorizado - entrada permitida';
+        logger.log('✅ Ayudante autorizado - puerta debe abrirse');
+        
+      } else if (tipoUsuario === 'ESTUDIANTE') {
+        // Estudiantes solo pueden entrar si hay ayudantes presentes
+        const assistantsPresent = await this.checkAssistantsPresent();
+        doorResult.assistantsPresent = assistantsPresent;
+        
+        if (assistantsPresent) {
+          doorResult.shouldOpen = true;
+          doorResult.reason = 'Estudiante autorizado - ayudantes presentes';
+          logger.log('✅ Estudiante autorizado - ayudantes presentes');
+        } else {
+          doorResult.shouldOpen = false;
+          doorResult.reason = 'Laboratorio cerrado - no hay ayudantes presentes';
+          doorResult.specialMessage = {
+            type: 'LABORATORIO_CERRADO',
+            title: 'Laboratorio Cerrado',
+            message: 'Tocar Timbre',
+            style: 'warning' // Para mostrar pantalla amarilla/naranja
+          };
+          logger.log('❌ Estudiante no autorizado - laboratorio cerrado');
+        }
+        
+      } else {
+        doorResult.reason = 'Tipo de usuario no válido';
+        logger.warn('❌ Tipo de usuario no reconocido:', tipoUsuario);
+      }
+
+      logger.debug('🚪 Resultado verificación puerta:', doorResult);
+      return doorResult;
+
+    } catch (error) {
+      logger.error('Error verificando acceso puerta:', error.message);
+      logger.debug('Error stack:', error.stack);
+      
+      // En caso de error, no abrir la puerta por seguridad
+      return {
+        shouldOpen: false,
+        reason: 'Error técnico - acceso denegado por seguridad',
+        assistantsPresent: false,
+        error: true
+      };
     }
   }
 }
