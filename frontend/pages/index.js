@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { BrowserQRCodeReader } from '@zxing/library';
 import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX } from 'react-icons/fi';
 
-export default function QRLector() {
+function QRLector() {
   const [isScanning, setIsScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Iniciando sistema...');
@@ -205,7 +206,7 @@ export default function QRLector() {
 
   // Función para procesar QR según el entorno (Electron vs Web)
   const processQRData = async (qrData) => {
-    const isElectron = window.electronAPI;
+    const isElectron = typeof window !== 'undefined' && window.electronAPI;
     
     if (isElectron) {
       // Entorno Electron - usar IPC
@@ -415,7 +416,7 @@ export default function QRLector() {
               </button>
             )}
             
-            {window.electronAPI && (
+            {typeof window !== 'undefined' && window.electronAPI && (
               <button
                 onClick={() => window.electronAPI.quitApp()}
                 className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold flex items-center gap-2"
@@ -490,3 +491,14 @@ export default function QRLector() {
     </div>
   );
 }
+
+// Exportar con SSR desactivado
+export default dynamic(() => Promise.resolve(QRLector), {
+  ssr: false,
+  loading: () => <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
+      <p>Cargando QR Lector...</p>
+    </div>
+  </div>
+});
