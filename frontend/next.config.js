@@ -9,6 +9,10 @@ const nextConfig = {
   experimental: {
     esmExternals: false,
   },
+  // Exponer variables de entorno al runtime del browser
+  env: {
+    API_BASE_URL: process.env.API_BASE_URL,
+  },
   webpack: (config) => {
     config.resolve.fallback = {
       fs: false,

@@ -17,6 +17,13 @@ function QRLector() {
   const codeReader = useRef(null);
 
   useEffect(() => {
+    // Debug completo de variables de entorno
+    console.log('🐛 DEBUG COMPLETO:');
+    console.log('🐛 process.env.API_BASE_URL:', process.env.API_BASE_URL);
+    console.log('🐛 process.env.NODE_ENV:', process.env.NODE_ENV);
+    console.log('🐛 typeof process.env.API_BASE_URL:', typeof process.env.API_BASE_URL);
+    console.log('🐛 process.env:', process.env);
+    
     initializeSystem();
     checkBackendConnection();
     
@@ -311,12 +318,20 @@ function QRLector() {
       // En Electron, usar la configuración del proceso principal
       return process.env.API_BASE_URL || 'http://localhost:3001/api';
     } else {
-      // En web, usar la variable de entorno del frontend
-      return process.env.API_BASE_URL || (
+      // En web, usar las variables de Next.js que están expuestas al browser
+      const apiBaseUrl = process.env.API_BASE_URL;
+      console.log('🌐 API_BASE_URL desde browser:', apiBaseUrl);
+      console.log('🌐 NODE_ENV:', process.env.NODE_ENV);
+      
+      // Validar que la URL no esté malformada
+      const finalUrl = apiBaseUrl || (
         process.env.NODE_ENV === 'production' 
           ? 'https://api.lector.lab.informaticauaint.com/api'
           : 'http://localhost:3001/api'
       );
+      
+      console.log('🌐 Final URL:', finalUrl);
+      return finalUrl;
     }
   };
 
@@ -334,7 +349,15 @@ function QRLector() {
       } else {
         // En web, hacer petición HTTP al endpoint de health
         const baseUrl = getBackendURL();
-        const response = await fetch(`${baseUrl.replace('/api', '')}/health`, {
+        console.log('🔗 baseUrl antes de replace:', baseUrl);
+        
+        // Remover solo el '/api' del final y construir URL de health correctamente
+        const healthUrl = baseUrl.endsWith('/api') 
+          ? baseUrl.slice(0, -4) + '/health'  // Remover los últimos 4 caracteres (/api)
+          : baseUrl + '/health';
+        console.log('🔗 healthUrl final:', healthUrl);
+        
+        const response = await fetch(healthUrl, {
           method: 'GET',
           timeout: 5000
         });
