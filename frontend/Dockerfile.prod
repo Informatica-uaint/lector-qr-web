@@ -6,8 +6,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-ENV NODE_ENV=production
-ENV API_BASE_URL=http://api:3001/api
+RUN echo "NODE_ENV=production\nAPI_BASE_URL=http://api:3001/api" > .env.prod
 RUN npm run build:prod
 
 FROM node:18-alpine AS runner
