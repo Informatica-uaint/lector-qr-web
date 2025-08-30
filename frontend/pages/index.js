@@ -17,13 +17,6 @@ function QRLector() {
   const codeReader = useRef(null);
 
   useEffect(() => {
-    // Debug completo de variables de entorno
-    console.log('🐛 DEBUG COMPLETO:');
-    console.log('🐛 process.env.API_BASE_URL:', process.env.API_BASE_URL);
-    console.log('🐛 process.env.NODE_ENV:', process.env.NODE_ENV);
-    console.log('🐛 typeof process.env.API_BASE_URL:', typeof process.env.API_BASE_URL);
-    console.log('🐛 process.env:', process.env);
-    
     initializeSystem();
     checkBackendConnection();
     
@@ -240,11 +233,19 @@ function QRLector() {
         body: JSON.stringify({ qrData })
       });
       
+      // Siempre intentar parsear la respuesta JSON, incluso en errores
+      const data = await response.json();
+      
+      // Si la respuesta no es OK pero tenemos datos JSON del backend, devolverlos
+      if (!response.ok && data) {
+        return data; // El backend ya incluye success: false y el mensaje
+      }
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      return await response.json();
+      return data;
     }
   };
 
@@ -320,8 +321,6 @@ function QRLector() {
     } else {
       // En web, usar las variables de Next.js que están expuestas al browser
       const apiBaseUrl = process.env.API_BASE_URL;
-      console.log('🌐 API_BASE_URL desde browser:', apiBaseUrl);
-      console.log('🌐 NODE_ENV:', process.env.NODE_ENV);
       
       // Validar que la URL no esté malformada
       const finalUrl = apiBaseUrl || (
@@ -330,7 +329,6 @@ function QRLector() {
           : 'http://localhost:3001/api'
       );
       
-      console.log('🌐 Final URL:', finalUrl);
       return finalUrl;
     }
   };
@@ -349,13 +347,11 @@ function QRLector() {
       } else {
         // En web, hacer petición HTTP al endpoint de health
         const baseUrl = getBackendURL();
-        console.log('🔗 baseUrl antes de replace:', baseUrl);
         
         // Remover solo el '/api' del final y construir URL de health correctamente
         const healthUrl = baseUrl.endsWith('/api') 
           ? baseUrl.slice(0, -4) + '/health'  // Remover los últimos 4 caracteres (/api)
           : baseUrl + '/health';
-        console.log('🔗 healthUrl final:', healthUrl);
         
         const response = await fetch(healthUrl, {
           method: 'GET',
