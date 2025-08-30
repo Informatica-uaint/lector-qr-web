@@ -15,7 +15,7 @@ app.commandLine.appendSwitch('--use-fake-ui-for-media-stream');
 app.commandLine.appendSwitch('--disable-web-security');
 
 // Configuración de la API
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3002/api';
+const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001/api';
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -172,6 +172,20 @@ ipcMain.handle('db-process-qr', async (event, qrData) => {
 
 ipcMain.handle('db-connect', async () => {
   return await reconnectDB();
+});
+
+// Nuevo handler para verificar conexión con backend
+ipcMain.handle('db-check-connection', async () => {
+  try {
+    const baseURL = API_BASE_URL.replace('/api', '');
+    const response = await axios.get(`${baseURL}/health`, {
+      timeout: 5000
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    console.error('✗ Error verificando conexión backend:', error.message);
+    return { success: false, message: 'Backend no disponible' };
+  }
 });
 
 // Nuevo handler para obtener el estado de la API

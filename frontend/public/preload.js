@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   database: {
     connect: (config) => ipcRenderer.invoke('db-connect', config),
     processQR: (qrData) => ipcRenderer.invoke('db-process-qr', qrData),
-    testConnection: () => ipcRenderer.invoke('db-test-connection')
+    testConnection: () => ipcRenderer.invoke('db-test-connection'),
+    checkConnection: () => ipcRenderer.invoke('db-check-connection')
   }
 });

@@ -11,14 +11,21 @@ function QRLector() {
   const [selectedDevice, setSelectedDevice] = useState('');
   const [lastResult, setLastResult] = useState(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [backendStatus, setBackendStatus] = useState('checking'); // 'connected', 'disconnected', 'checking'
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
 
   useEffect(() => {
     initializeSystem();
+    checkBackendConnection();
+    
+    // Verificar conexión con backend cada 30 segundos
+    const backendCheck = setInterval(checkBackendConnection, 30000);
+    
     return () => {
       stopScanning();
+      clearInterval(backendCheck);
       // Limpiar stream de video
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = videoRef.current.srcObject.getTracks();
@@ -215,9 +222,8 @@ function QRLector() {
     } else {
       // Entorno Web - usar HTTP directo
       console.log('🌐 Procesando QR via HTTP API');
-      const apiUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://api.lector.lab.informaticauaint.com/api/qr/process'
-        : 'http://localhost:3002/api/qr/process';
+      const baseUrl = getBackendURL();
+      const apiUrl = `${baseUrl}/qr/process`;
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -268,8 +274,24 @@ function QRLector() {
             }
           }, 3000);
         } else {
+          // Manejar errores específicos
           setStatusMessage(`Error: ${result.message}`);
           console.log(`ERROR DE REGISTRO: ${result.message}`);
+          
+          // Pausar escaneo temporalmente y mostrar pantalla de error
+          stopScanning();
+          setShowConfirmation(true);
+          
+          // Ocultar confirmación después de 3 segundos y reanudar escaneo
+          setTimeout(() => {
+            setShowConfirmation(false);
+            setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
+            
+            // Reanudar escaneo automático si no está ya escaneando
+            if (!isScanning && cameraActive) {
+              startScanning();
+            }
+          }, 3000);
         }
       } else {
         throw new Error('No response from database');
@@ -278,6 +300,50 @@ function QRLector() {
     } catch (error) {
       console.error('Error procesando QR:', error);
       setStatusMessage('Error procesando QR');
+    }
+  };
+
+  // Obtener URL del backend según el ambiente
+  const getBackendURL = () => {
+    const isElectron = typeof window !== 'undefined' && window.electronAPI;
+    
+    if (isElectron) {
+      // En Electron, usar la configuración del proceso principal
+      return process.env.API_BASE_URL || 'http://localhost:3001/api';
+    } else {
+      // En web, usar la variable de entorno del frontend
+      return process.env.API_BASE_URL || (
+        process.env.NODE_ENV === 'production' 
+          ? 'https://api.lector.lab.informaticauaint.com/api'
+          : 'http://localhost:3001/api'
+      );
+    }
+  };
+
+  // Verificar conexión con backend
+  const checkBackendConnection = async () => {
+    const isElectron = typeof window !== 'undefined' && window.electronAPI;
+    
+    try {
+      setBackendStatus('checking');
+      
+      if (isElectron) {
+        // En Electron, verificar a través del IPC
+        const result = await window.electronAPI.database.checkConnection();
+        setBackendStatus(result.success ? 'connected' : 'disconnected');
+      } else {
+        // En web, hacer petición HTTP al endpoint de health
+        const baseUrl = getBackendURL();
+        const response = await fetch(`${baseUrl.replace('/api', '')}/health`, {
+          method: 'GET',
+          timeout: 5000
+        });
+        
+        setBackendStatus(response.ok ? 'connected' : 'disconnected');
+      }
+    } catch (error) {
+      console.error('Error verificando conexión backend:', error);
+      setBackendStatus('disconnected');
     }
   };
 
@@ -439,12 +505,22 @@ function QRLector() {
             
             <div className="space-y-3">
               <div className="flex items-center justify-between">
+                <span className="text-slate-300">Backend:</span>
+                <span className={`font-semibold ${
+                  backendStatus === 'connected' ? 'text-green-400' : 
+                  backendStatus === 'disconnected' ? 'text-red-400' : 'text-yellow-400'
+                }`}>
+                  {backendStatus === 'connected' ? 'CONECTADO' : 
+                   backendStatus === 'disconnected' ? 'DESCONECTADO' : 'VERIFICANDO...'}
+                </span>
+              </div>
+              
+              <div className="flex items-center justify-between">
                 <span className="text-slate-300">Cámara:</span>
                 <span className={`font-semibold ${cameraActive ? 'text-green-400' : 'text-red-400'}`}>
                   {cameraActive ? 'OPERATIVA' : 'ERROR'}
                 </span>
               </div>
-              
               
               <div className="flex items-center justify-between">
                 <span className="text-slate-300">Escaneando:</span>
@@ -468,16 +544,18 @@ function QRLector() {
         </div>
       </div>
 
-      {/* Pantalla de confirmación */}
-      {showConfirmation && lastResult && lastResult.success && (
+      {/* Pantalla de confirmación/error */}
+      {showConfirmation && lastResult && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center ${
-          lastResult.tipo === 'Entrada' 
-            ? 'bg-green-500' 
-            : 'bg-orange-500'
+          lastResult.success ? (
+            lastResult.tipo === 'Entrada' 
+              ? 'bg-green-500' 
+              : 'bg-orange-500'
+          ) : 'bg-red-500'
         } bg-opacity-95 backdrop-blur-sm`}>
           <div className="text-center text-white">
             <div className="text-9xl font-black mb-8 tracking-wider">
-              {lastResult.tipo?.toUpperCase()}
+              {lastResult.success ? lastResult.tipo?.toUpperCase() : 'ERROR'}
             </div>
             <div className="text-4xl font-bold mb-4">
               {lastResult.message}
@@ -485,6 +563,11 @@ function QRLector() {
             <div className="text-2xl opacity-90">
               {lastResult.timestamp}
             </div>
+            {!lastResult.success && lastResult.email && (
+              <div className="text-xl opacity-75 mt-2">
+                {lastResult.email}
+              </div>
+            )}
           </div>
         </div>
       )}

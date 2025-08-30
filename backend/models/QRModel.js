@@ -57,7 +57,25 @@ class QRModel {
       
       if (!user) {
         console.log('❌ Usuario no encontrado en base de datos:', email);
-        return { success: false, message: `Usuario no autorizado: ${email}` };
+        
+        // Determinar tipo de error según el tipo de usuario del QR
+        const qrTipoUsuario = qrJson.tipoUsuario;
+        
+        if (qrTipoUsuario === 'ESTUDIANTE') {
+          return { 
+            success: false, 
+            message: `Solicita ser agregado a la base de datos`,
+            errorType: 'ESTUDIANTE_NO_REGISTRADO',
+            email: email
+          };
+        } else {
+          return { 
+            success: false, 
+            message: `No Autorizado`,
+            errorType: 'USUARIO_NO_AUTORIZADO',
+            email: email
+          };
+        }
       }
       
       console.log('✓ Usuario encontrado:', JSON.stringify(user));
