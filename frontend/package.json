@@ -5,12 +5,15 @@
   "main": "public/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:next\" \"npm run dev:electron\"",
-    "dev:next": "next dev -p 3020 -H 0.0.0.0",
+    "dev:next": "env-cmd -f .env.dev next dev -p 3020 -H 0.0.0.0",
     "dev:electron": "wait-on http://localhost:3020 && electron .",
-    "dev:web-prod-api": "env-cmd -f .env.production-api next dev -p 3020 -H 0.0.0.0",
+    "dev:prod-api": "env-cmd -f .env.prod-api next dev -p 3020 -H 0.0.0.0",
+    "dev:web-prod-api": "concurrently \"npm run dev:prod-api\" \"npm run dev:electron\"",
     "build": "next build",
+    "build:prod": "env-cmd -f .env.prod next build",
     "build:electron": "npm run build && electron-builder",
     "start": "next start",
+    "start:prod": "env-cmd -f .env.prod next start",
     "electron": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"

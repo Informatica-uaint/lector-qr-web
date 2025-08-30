@@ -19,15 +19,17 @@ if (process.env.NODE_ENV === 'production') {
 // Middleware de seguridad
 app.use(helmet());
 // Configurar CORS dinámicamente basado en el entorno
-const allowedOrigins = process.env.NODE_ENV === 'production' 
-  ? [
-      'https://lector.lab.informaticauaint.com',
-      'http://lector.lab.informaticauaint.com'
-    ]
-  : [
-      'http://localhost:3020', 
-      'http://127.0.0.1:3020'
-    ];
+const allowedOrigins = process.env.CORS_ORIGINS 
+  ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+  : process.env.NODE_ENV === 'production' 
+    ? [
+        'https://lector.lab.informaticauaint.com',
+        'http://lector.lab.informaticauaint.com'
+      ]
+    : [
+        'http://localhost:3020', 
+        'http://127.0.0.1:3020'
+      ];
 
 app.use(cors({
   origin: allowedOrigins,

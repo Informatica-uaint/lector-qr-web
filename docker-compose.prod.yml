@@ -1,5 +1,6 @@
 version: '3.8'
 
+# Production environment with pre-built images
 services:
   mysql-prod:
     image: mysql:8.0
@@ -23,14 +24,10 @@ services:
   api-prod:
     image: ghcr.io/${GITHUB_REPOSITORY}/qr-backend:latest
     container_name: qr-api-prod
+    env_file:
+      - ./backend/.env.prod
     environment:
       MYSQL_HOST: mysql-prod
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_DB: ${MYSQL_DB}
-      MYSQL_PORT: 3306
-      PORT: 3001
-      NODE_ENV: production
     ports:
       - "3001:3001"
     depends_on:
@@ -41,9 +38,8 @@ services:
   frontend-prod:
     image: ghcr.io/${GITHUB_REPOSITORY}/qr-frontend:latest
     container_name: qr-frontend-prod
-    environment:
-      NODE_ENV: production
-      API_BASE_URL: ${API_BASE_URL:-http://localhost:3001/api}
+    env_file:
+      - ./frontend/.env.prod
     ports:
       - "3020:3020"
     depends_on:

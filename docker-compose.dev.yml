@@ -1,5 +1,6 @@
 version: '3.8'
 
+# Development environment with local database
 services:
   mysql-dev:
     image: mysql:8.0
@@ -24,14 +25,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     container_name: qr-api-dev
+    env_file:
+      - ./backend/.env.dev
     environment:
       MYSQL_HOST: mysql-dev
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_DB: ${MYSQL_DB}
-      MYSQL_PORT: 3306
-      PORT: 3001
-      NODE_ENV: development
     ports:
       - "3001:3001"
     volumes:
@@ -47,9 +44,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     container_name: qr-frontend-dev
-    environment:
-      NODE_ENV: development
-      API_BASE_URL: http://localhost:3001/api
+    env_file:
+      - ./frontend/.env.dev
     ports:
       - "3020:3020"
     volumes:

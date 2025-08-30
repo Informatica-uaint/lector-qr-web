@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration name="Full Development (Prod API)" type="CompoundRunConfigurationType">
+  <toRun name="Backend Dev (Prod API)" type="js.build_tools.npm" />
+  <toRun name="Frontend Dev (Prod API)" type="js.build_tools.npm" />
+  <method v="2" />
+</configuration>
