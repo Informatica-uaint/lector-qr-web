@@ -669,12 +669,34 @@ function QRLector() {
             </div>
           </div>
 
-          {/* Mensaje de estado */}
+          {/* Generación de QR */}
           <div className="bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-6">
-            <h3 className="text-lg font-semibold mb-4">Estado Actual</h3>
-            <p className="text-slate-300 text-center p-4 bg-slate-700/50 rounded-lg">
-              {statusMessage}
-            </p>
+            <h3 className="text-lg font-semibold mb-4 text-center">Genera tu QR</h3>
+            <div className="text-center">
+              <div className="bg-white p-6 rounded-lg inline-block mb-4">
+                {/* QR Code placeholder - replace with actual QR image URL */}
+                <img 
+                  src="https://cdn.informaticauaint.com/qr-acceso.png" 
+                  alt="QR Code para acceso.informaticauaint.com"
+                  className="w-48 h-48 mx-auto"
+                  onError={(e) => {
+                    // Fallback if CDN image doesn't load
+                    e.target.style.display = 'none';
+                    e.target.nextElementSibling.style.display = 'flex';
+                  }}
+                />
+                {/* Fallback QR text */}
+                <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-slate-800 text-sm text-center hidden">
+                  QR para<br/>acceso.informaticauaint.com
+                </div>
+              </div>
+              <p className="text-slate-300 text-sm">
+                Escanea para generar tu código
+              </p>
+              <p className="text-slate-400 text-xs mt-2">
+                acceso.informaticauaint.com
+              </p>
+            </div>
           </div>
 
 
