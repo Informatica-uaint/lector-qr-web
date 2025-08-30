@@ -361,11 +361,11 @@ function QRLector() {
           </div>
           
           {/* Video container */}
-          <div className="relative bg-black rounded-lg overflow-hidden h-80">
+          <div className="relative bg-black rounded-lg overflow-hidden aspect-video min-h-[300px] max-h-[70vh]">
             {cameraActive ? (
               <video
                 ref={videoRef}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 playsInline
                 muted
                 autoPlay
