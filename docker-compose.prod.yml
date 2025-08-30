@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Production environment with pre-built images
 services:
   mysql-prod:
