@@ -1,6 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const QRModel = require('../models/QRModel');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -27,10 +28,12 @@ router.post('/process', async (req, res) => {
   try {
     const { qrData } = req.body;
     
-    console.log('📱 QR recibido:', JSON.stringify(qrData).slice(0, 200));
+    logger.log('📱 QR recibido:', JSON.stringify(qrData).slice(0, 200));
+    logger.debug('Request headers:', req.headers);
+    logger.debug('Full request body:', req.body);
 
     if (!qrData) {
-      console.log('❌ Error: Datos QR faltantes');
+      logger.warn('❌ Error: Datos QR faltantes');
       return res.status(400).json({
         success: false,
         message: 'Datos QR requeridos'
@@ -42,6 +45,8 @@ router.post('/process', async (req, res) => {
     try {
       parsedData = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
     } catch (parseError) {
+      logger.error('❌ Error parseando QR data:', parseError.message);
+      logger.debug('Raw QR data:', qrData);
       return res.status(400).json({
         success: false,
         message: 'Formato QR inválido'
@@ -51,25 +56,32 @@ router.post('/process', async (req, res) => {
     // Validar schema
     const { error } = qrSchema.validate(parsedData);
     if (error) {
+      logger.warn('❌ Schema validation failed:', error.details[0].message);
+      logger.debug('Invalid data:', parsedData);
       return res.status(400).json({
         success: false,
         message: `Datos QR inválidos: ${error.details[0].message}`
       });
     }
+    
+    logger.debug('✓ QR data validation passed');
 
     // Procesar QR
     const result = await QRModel.processQRData(parsedData);
 
     if (result.success) {
-      console.log(`✓ QR procesado exitosamente: ${result.message} - ${result.tipo}`);
+      logger.log(`✓ QR procesado exitosamente: ${result.message} - ${result.tipo}`);
+      logger.debug('Process result:', result);
       res.status(200).json(result);
     } else {
-      console.log(`✗ Error procesando QR: ${result.message}`);
+      logger.warn(`✗ Error procesando QR: ${result.message}`);
+      logger.debug('Process failure result:', result);
       res.status(400).json(result);
     }
 
   } catch (error) {
-    console.error('Error en /api/qr/process:', error);
+    logger.error('Error en /api/qr/process:', error.message);
+    logger.debug('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
@@ -84,6 +96,7 @@ router.post('/process', async (req, res) => {
 router.get('/recent', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
+    logger.debug(`Getting recent records with limit: ${limit}`);
     
     if (limit < 1 || limit > 100) {
       return res.status(400).json({
@@ -94,6 +107,9 @@ router.get('/recent', async (req, res) => {
 
     const registros = await QRModel.getRecentRegistros(limit);
     
+    logger.log(`✓ Retrieved ${registros.length} recent records`);
+    logger.debug('Recent records:', registros.slice(0, 3)); // Log first 3 records only
+    
     res.status(200).json({
       success: true,
       data: registros,
@@ -101,7 +117,8 @@ router.get('/recent', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en /api/qr/recent:', error);
+    logger.error('Error en /api/qr/recent:', error.message);
+    logger.debug('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error obteniendo registros'
@@ -121,7 +138,8 @@ router.get('/stats', async (req, res) => {
       message: 'Estadísticas no implementadas aún'
     });
   } catch (error) {
-    console.error('Error en /api/qr/stats:', error);
+    logger.error('Error en /api/qr/stats:', error.message);
+    logger.debug('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error obteniendo estadísticas'

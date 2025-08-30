@@ -1,5 +1,6 @@
 const express = require('express');
 const dbManager = require('../config/database');
+const logger = require('../utils/logger');
 
 const router = express.Router();
 
@@ -9,9 +10,11 @@ const router = express.Router();
  */
 router.get('/test', async (req, res) => {
   try {
+    logger.log('🔍 Testing database connection...');
     const isConnected = await dbManager.testConnection();
     
     if (isConnected) {
+      logger.log('✓ Database connection test successful');
       res.status(200).json({
         success: true,
         message: 'Conexión a base de datos exitosa',
@@ -23,6 +26,7 @@ router.get('/test', async (req, res) => {
         }
       });
     } else {
+      logger.error('❌ Database connection test failed');
       res.status(500).json({
         success: false,
         message: 'Error conectando a base de datos'
@@ -30,7 +34,8 @@ router.get('/test', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Error en /api/db/test:', error);
+    logger.error('Error en /api/db/test:', error.message);
+    logger.debug('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'
@@ -44,8 +49,12 @@ router.get('/test', async (req, res) => {
  */
 router.get('/status', async (req, res) => {
   try {
+    logger.debug('🔍 Getting database status...');
     const connection = await dbManager.getConnection();
     const [result] = await connection.execute('SELECT NOW() as server_time, VERSION() as version');
+    
+    logger.log('✓ Database status retrieved successfully');
+    logger.debug('DB Status:', result[0]);
     
     res.status(200).json({
       success: true,
@@ -60,7 +69,8 @@ router.get('/status', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error en /api/db/status:', error);
+    logger.error('Error en /api/db/status:', error.message);
+    logger.debug('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error obteniendo estado de base de datos'
@@ -74,15 +84,18 @@ router.get('/status', async (req, res) => {
  */
 router.post('/reconnect', async (req, res) => {
   try {
+    logger.log('🔄 Attempting database reconnection...');
     await dbManager.closeConnection();
     const isConnected = await dbManager.testConnection();
     
     if (isConnected) {
+      logger.log('✓ Database reconnection successful');
       res.status(200).json({
         success: true,
         message: 'Reconexión exitosa'
       });
     } else {
+      logger.error('❌ Database reconnection failed');
       res.status(500).json({
         success: false,
         message: 'Error en reconexión'
@@ -90,7 +103,8 @@ router.post('/reconnect', async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Error en /api/db/reconnect:', error);
+    logger.error('Error en /api/db/reconnect:', error.message);
+    logger.debug('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor'

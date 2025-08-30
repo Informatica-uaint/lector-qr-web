@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const logger = require('../utils/logger');
 
 class DatabaseManager {
   constructor() {
@@ -21,11 +22,18 @@ class DatabaseManager {
     try {
       if (!this.pool) {
         this.pool = mysql.createPool(this.config);
-        console.log('✓ Pool MySQL establecido');
+        logger.log('✓ Pool MySQL establecido');
+        logger.debug('Pool config:', {
+          host: this.config.host,
+          user: this.config.user,
+          database: this.config.database,
+          port: this.config.port,
+          connectionLimit: this.config.connectionLimit
+        });
       }
       return this.pool;
     } catch (error) {
-      console.error('✗ Error creando pool MySQL:', error.message);
+      logger.error('✗ Error creando pool MySQL:', error.message);
       throw error;
     }
   }
@@ -34,10 +42,10 @@ class DatabaseManager {
     try {
       const pool = await this.getPool();
       const [rows] = await pool.execute('SELECT 1 as test');
-      console.log('✓ Test de conexión MySQL exitoso');
+      logger.log('✓ Test de conexión MySQL exitoso');
       return true;
     } catch (error) {
-      console.error('✗ Error en test de conexión MySQL:', error.message);
+      logger.error('✗ Error en test de conexión MySQL:', error.message);
       return false;
     }
   }
@@ -47,9 +55,9 @@ class DatabaseManager {
       try {
         await this.pool.end();
         this.pool = null;
-        console.log('✓ Pool MySQL cerrado');
+        logger.log('✓ Pool MySQL cerrado');
       } catch (error) {
-        console.error('✗ Error cerrando pool MySQL:', error.message);
+        logger.error('✗ Error cerrando pool MySQL:', error.message);
       }
     }
   }
@@ -59,12 +67,10 @@ class DatabaseManager {
     
     try {
       // Log de la query (solo en desarrollo)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('\n🔍 [DB QUERY]');
-        console.log('📝 SQL:', sql);
-        if (params && params.length > 0) {
-          console.log('📋 Params:', params);
-        }
+      logger.debug('\n🔍 [DB QUERY]');
+      logger.debug('📝 SQL:', sql);
+      if (params && params.length > 0) {
+        logger.debug('📋 Params:', params);
       }
       
       const pool = await this.getPool();
@@ -73,24 +79,26 @@ class DatabaseManager {
       const duration = Date.now() - startTime;
       
       // Log del resultado (solo en desarrollo)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('✅ Rows affected/returned:', Array.isArray(rows) ? rows.length : 1);
-        console.log('⏱️  Query duration:', `${duration}ms`);
-        console.log('🔚 [DB QUERY END]\n');
+      logger.debug('✅ Rows affected/returned:', Array.isArray(rows) ? rows.length : 1);
+      logger.debug('⏱️  Query duration:', `${duration}ms`);
+      if (duration > 1000) {
+        logger.warn('⚠️  Slow query detected:', `${duration}ms`);
       }
+      logger.debug('🔚 [DB QUERY END]\n');
       
       return rows;
     } catch (error) {
       const duration = Date.now() - startTime;
       
-      console.error('\n❌ [DB ERROR]');
-      console.error('📝 SQL:', sql);
+      logger.error('\n❌ [DB ERROR]');
+      logger.error('📝 SQL:', sql);
       if (params && params.length > 0) {
-        console.error('📋 Params:', params);
+        logger.error('📋 Params:', params);
       }
-      console.error('💥 Error:', error.message);
-      console.error('⏱️  Query duration:', `${duration}ms`);
-      console.error('🔚 [DB ERROR END]\n');
+      logger.error('💥 Error:', error.message);
+      logger.error('⏱️  Query duration:', `${duration}ms`);
+      logger.debug('Stack trace:', error.stack);
+      logger.error('🔚 [DB ERROR END]\n');
       
       throw error;
     }

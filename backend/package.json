@@ -8,19 +8,25 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["qr", "api", "mysql", "express", "laboratorio"],
+  "keywords": [
+    "qr",
+    "api",
+    "mysql",
+    "express",
+    "laboratorio"
+  ],
   "author": "UAI Lab Informatica",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "mysql2": "^3.6.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "helmet": "^7.1.0",
+    "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
-    "joi": "^17.11.0"
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "mysql2": "^3.6.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.1.10"
   }
 }

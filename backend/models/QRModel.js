@@ -1,4 +1,5 @@
 const dbManager = require('../config/database');
+const logger = require('../utils/logger');
 
 class QRModel {
   /**
@@ -8,21 +9,21 @@ class QRModel {
    */
   static async processQRData(qrData) {
     try {
-      console.log('🔍 Procesando QR, tipo:', typeof qrData, 'contenido:', JSON.stringify(qrData).slice(0, 100));
+      logger.log('🔍 Procesando QR, tipo:', typeof qrData, 'contenido:', JSON.stringify(qrData).slice(0, 100));
       
       // Parsear datos del QR
       let qrJson;
       if (typeof qrData === 'string') {
         try {
           qrJson = JSON.parse(qrData);
-          console.log('✓ QR parseado desde string:', JSON.stringify(qrJson));
+          logger.debug('✓ QR parseado desde string:', JSON.stringify(qrJson));
         } catch (jsonError) {
-          console.log('❌ Error parseando JSON:', jsonError.message);
+          logger.error('❌ Error parseando JSON:', jsonError.message);
           return { success: false, message: 'Formato QR inválido' };
         }
       } else {
         qrJson = qrData;
-        console.log('✓ QR recibido como objeto:', JSON.stringify(qrJson));
+        logger.debug('✓ QR recibido como objeto:', JSON.stringify(qrJson));
       }
 
       // Validar timestamp del QR (15 segundos de tolerancia)
@@ -31,10 +32,14 @@ class QRModel {
         const currentTimeMs = Date.now();
         const timeDiffSeconds = (currentTimeMs - qrTimestamp) / 1000;
         
+        logger.debug(`🕰️ Timestamp validation: QR=${qrTimestamp}, Current=${currentTimeMs}, Diff=${timeDiffSeconds}s`);
+        
         if (Math.abs(timeDiffSeconds) > 15) {
+          logger.warn('❌ QR expirado - Diferencia de tiempo:', timeDiffSeconds, 'segundos');
           return { success: false, message: 'QR expirado o inválido' };
         }
       } else {
+        logger.error('❌ QR sin timestamp válido');
         return { success: false, message: 'QR sin timestamp válido' };
       }
 
@@ -44,19 +49,19 @@ class QRModel {
       const email = qrJson.email || '';
       const userType = qrJson.type || qrJson.tipo || qrJson.tipoUsuario || '';
 
-      console.log('📋 Datos extraídos - Nombre:', name, 'Apellido:', surname, 'Email:', email, 'Tipo:', userType);
+      logger.log('📋 Datos extraídos - Nombre:', name, 'Apellido:', surname, 'Email:', email, 'Tipo:', userType);
 
       if (!name || !surname || !email) {
-        console.log('❌ Datos incompletos:', { name, surname, email });
+        logger.warn('❌ Datos incompletos:', { name, surname, email });
         return { success: false, message: 'Datos QR incompletos' };
       }
 
       // Buscar usuario en la base de datos
-      console.log('🔍 Buscando usuario con email:', email);
+      logger.log('🔍 Buscando usuario con email:', email);
       const user = await this.findUser(email);
       
       if (!user) {
-        console.log('❌ Usuario no encontrado en base de datos:', email);
+        logger.warn('❌ Usuario no encontrado en base de datos:', email);
         
         // Determinar tipo de error según el tipo de usuario del QR
         const qrTipoUsuario = qrJson.tipoUsuario;
@@ -78,7 +83,8 @@ class QRModel {
         }
       }
       
-      console.log('✓ Usuario encontrado:', JSON.stringify(user));
+      logger.log('✓ Usuario encontrado:', JSON.stringify(user));
+      logger.debug('User details:', user);
 
       // Determinar tipo de registro (Entrada/Salida)
       const now = new Date();
@@ -87,11 +93,15 @@ class QRModel {
       // Determinar el tipo de usuario del QR (AYUDANTE o ESTUDIANTE)
       const qrTipoUsuario = qrJson.tipoUsuario;
       
+      logger.debug(`📅 Procesando registro para fecha: ${fechaHoy}, tipo usuario: ${qrTipoUsuario}`);
+      
       const registrosCount = await this.getRegistrosCount(email, fechaHoy, qrTipoUsuario);
       const tipoRegistro = registrosCount % 2 === 0 ? 'Entrada' : 'Salida';
+      
+      logger.log(`🔢 Registros existentes: ${registrosCount}, Tipo a registrar: ${tipoRegistro}`);
 
       // Insertar registro en la tabla correcta según el tipo de usuario
-      const registroId = await this.insertRegistro({
+      const registroData = {
         fecha: fechaHoy,
         hora: now.toTimeString().split(' ')[0],
         dia: now.toLocaleDateString('es-ES', { weekday: 'long' }),
@@ -101,9 +111,13 @@ class QRModel {
         metodo: 'QR',
         tipo: tipoRegistro,
         tipoUsuario: qrTipoUsuario
-      });
+      };
+      
+      logger.debug('📦 Insertando registro:', registroData);
+      const registroId = await this.insertRegistro(registroData);
+      logger.log(`✓ Registro insertado con ID: ${registroId}`);
 
-      return {
+      const result = {
         success: true,
         message: `${name} ${surname}`,
         tipo: tipoRegistro,
@@ -113,9 +127,13 @@ class QRModel {
         timestamp: now.toLocaleTimeString(),
         registro_id: registroId
       };
+      
+      logger.log('✅ QR procesado exitosamente:', result.message, result.tipo);
+      return result;
 
     } catch (error) {
-      console.error('Error procesando QR:', error);
+      logger.error('Error procesando QR:', error.message);
+      logger.debug('Error stack:', error.stack);
       return { 
         success: false, 
         message: `Error interno: ${error.message.slice(0, 50)}` 
@@ -130,10 +148,10 @@ class QRModel {
    */
   static async findUser(email) {
     try {
-      console.log('🔍 [FIND USER] Buscando usuario con email:', email);
+      logger.debug('🔍 [FIND USER] Buscando usuario con email:', email);
       
       // Buscar en usuarios_permitidos (ayudantes)
-      console.log('📋 [FIND USER] Buscando en tabla usuarios_permitidos...');
+      logger.debug('📋 [FIND USER] Buscando en tabla usuarios_permitidos...');
       let users = await dbManager.query(`
         SELECT id, nombre, apellido, email, TP as tipo, activo 
         FROM usuarios_permitidos 
@@ -141,13 +159,13 @@ class QRModel {
       `, [email]);
 
       if (users.length > 0) {
-        console.log('✅ [FIND USER] Usuario encontrado en usuarios_permitidos:', JSON.stringify(users[0]));
+        logger.debug('✅ [FIND USER] Usuario encontrado en usuarios_permitidos:', JSON.stringify(users[0]));
         return users[0];
       }
-      console.log('❌ [FIND USER] Usuario no encontrado en usuarios_permitidos');
+      logger.debug('❌ [FIND USER] Usuario no encontrado en usuarios_permitidos');
 
       // Si no se encuentra, buscar en usuarios_estudiantes
-      console.log('📋 [FIND USER] Buscando en tabla usuarios_estudiantes...');
+      logger.debug('📋 [FIND USER] Buscando en tabla usuarios_estudiantes...');
       users = await dbManager.query(`
         SELECT id, nombre, apellido, email, TP as tipo, activo 
         FROM usuarios_estudiantes 
@@ -155,14 +173,15 @@ class QRModel {
       `, [email]);
 
       if (users.length > 0) {
-        console.log('✅ [FIND USER] Usuario encontrado en usuarios_estudiantes:', JSON.stringify(users[0]));
+        logger.debug('✅ [FIND USER] Usuario encontrado en usuarios_estudiantes:', JSON.stringify(users[0]));
         return users[0];
       }
       
-      console.log('❌ [FIND USER] Usuario no encontrado en ninguna tabla');
+      logger.debug('❌ [FIND USER] Usuario no encontrado en ninguna tabla');
       return null;
     } catch (error) {
-      console.error('💥 [FIND USER] Error buscando usuario:', error);
+      logger.error('💥 [FIND USER] Error buscando usuario:', error.message);
+      logger.debug('Error stack:', error.stack);
       throw error;
     }
   }
@@ -178,6 +197,7 @@ class QRModel {
     try {
       // Seleccionar tabla correcta según el tipo de usuario
       const tabla = tipoUsuario === 'ESTUDIANTE' ? 'EST_registros' : 'registros';
+      logger.debug(`🔢 Contando registros en tabla: ${tabla} para ${email} en ${fecha}`);
       
       const result = await dbManager.query(`
         SELECT COUNT(*) as registros
@@ -185,9 +205,12 @@ class QRModel {
         WHERE email = ? AND fecha = ?
       `, [email, fecha]);
 
-      return result[0]?.registros || 0;
+      const count = result[0]?.registros || 0;
+      logger.debug(`🔢 Registros encontrados: ${count}`);
+      return count;
     } catch (error) {
-      console.error('Error obteniendo conteo de registros:', error);
+      logger.error('Error obteniendo conteo de registros:', error.message);
+      logger.debug('Error stack:', error.stack);
       throw error;
     }
   }
@@ -201,6 +224,7 @@ class QRModel {
     try {
       // Seleccionar tabla correcta según el tipo de usuario
       const tabla = registro.tipoUsuario === 'ESTUDIANTE' ? 'EST_registros' : 'registros';
+      logger.debug(`📦 Insertando en tabla: ${tabla}`);
       
       const result = await dbManager.query(`
         INSERT INTO ${tabla} (fecha, hora, dia, nombre, apellido, email, metodo, tipo)
@@ -216,9 +240,11 @@ class QRModel {
         registro.tipo
       ]);
 
+      logger.debug(`✓ Registro insertado con ID: ${result.insertId}`);
       return result.insertId;
     } catch (error) {
-      console.error('Error insertando registro:', error);
+      logger.error('Error insertando registro:', error.message);
+      logger.debug('Error stack:', error.stack);
       throw error;
     }
   }
@@ -230,13 +256,15 @@ class QRModel {
    */
   static async getRecentRegistros(limit = 10) {
     try {
+      logger.debug(`📄 Obteniendo ${limit} registros recientes`);
       return await dbManager.query(`
         SELECT * FROM registros 
         ORDER BY fecha DESC, hora DESC 
         LIMIT ?
       `, [limit]);
     } catch (error) {
-      console.error('Error obteniendo registros recientes:', error);
+      logger.error('Error obteniendo registros recientes:', error.message);
+      logger.debug('Error stack:', error.stack);
       throw error;
     }
   }

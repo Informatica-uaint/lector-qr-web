@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { BrowserQRCodeReader } from '@zxing/library';
 import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX } from 'react-icons/fi';
+import logger from '../utils/clientLogger';
 
 function QRLector() {
   const [isScanning, setIsScanning] = useState(false);
@@ -41,19 +42,19 @@ function QRLector() {
       
       // Polyfill completo para navigator.mediaDevices
       if (!navigator.mediaDevices) {
-        console.warn('navigator.mediaDevices no disponible, creando polyfill...');
+        logger.warn('navigator.mediaDevices no disponible, creando polyfill...');
         navigator.mediaDevices = {};
       }
       
       // Polyfill para getUserMedia
       if (!navigator.mediaDevices.getUserMedia) {
-        console.warn('getUserMedia no disponible, usando polyfill...');
+        logger.warn('getUserMedia no disponible, usando polyfill...');
         
         // Debug: verificar qué APIs están disponibles
-        console.log('navigator.getUserMedia:', !!navigator.getUserMedia);
-        console.log('navigator.webkitGetUserMedia:', !!navigator.webkitGetUserMedia);
-        console.log('navigator.mozGetUserMedia:', !!navigator.mozGetUserMedia);
-        console.log('navigator.msGetUserMedia:', !!navigator.msGetUserMedia);
+        logger.debug('navigator.getUserMedia:', !!navigator.getUserMedia);
+        logger.debug('navigator.webkitGetUserMedia:', !!navigator.webkitGetUserMedia);
+        logger.debug('navigator.mozGetUserMedia:', !!navigator.mozGetUserMedia);
+        logger.debug('navigator.msGetUserMedia:', !!navigator.msGetUserMedia);
         
         // Buscar getUserMedia en diferentes prefijos
         const getUserMedia = navigator.getUserMedia || 
@@ -62,26 +63,26 @@ function QRLector() {
                            navigator.msGetUserMedia;
         
         if (getUserMedia) {
-          console.log('✓ getUserMedia encontrado, creando polyfill...');
+          logger.log('✓ getUserMedia encontrado, creando polyfill...');
           navigator.mediaDevices.getUserMedia = function(constraints) {
             return new Promise((resolve, reject) => {
               getUserMedia.call(navigator, constraints, resolve, reject);
             });
           };
         } else {
-          console.error('✗ No se encontró ninguna versión de getUserMedia');
+          logger.error('✗ No se encontró ninguna versión de getUserMedia');
           // Fallback final - solo para testing, no funcionará realmente
           navigator.mediaDevices.getUserMedia = function(constraints) {
             return Promise.reject(new Error('getUserMedia no está soportado en este navegador'));
           };
         }
       } else {
-        console.log('✓ navigator.mediaDevices.getUserMedia ya disponible');
+        logger.log('✓ navigator.mediaDevices.getUserMedia ya disponible');
       }
       
       // Polyfill para enumerateDevices
       if (!navigator.mediaDevices.enumerateDevices) {
-        console.warn('enumerateDevices no disponible, usando polyfill...');
+        logger.warn('enumerateDevices no disponible, usando polyfill...');
         navigator.mediaDevices.enumerateDevices = function() {
           return Promise.resolve([
             { deviceId: 'default', kind: 'videoinput', label: 'Cámara por defecto' }
@@ -90,11 +91,14 @@ function QRLector() {
       }
       
       // Obtener dispositivos de cámara usando navigator.mediaDevices
+      logger.log('📹 Enumerating video devices...');
       const videoDevices = await navigator.mediaDevices.enumerateDevices();
       const cameras = videoDevices.filter(device => device.kind === 'videoinput');
+      logger.log(`📹 Found ${cameras.length} camera devices:`, cameras.map(c => c.label || c.deviceId));
       setDevices(cameras);
       
       if (cameras.length > 0) {
+        logger.log('✓ Camera available, initializing...');
         setSelectedDevice(cameras[0].deviceId);
         setCameraActive(true);
         setStatusMessage('Cámara disponible - Iniciando escaneo automático');
@@ -104,15 +108,18 @@ function QRLector() {
         
         // Iniciar escaneo automático después de un pequeño delay
         setTimeout(() => {
+          logger.debug('🚀 Starting automatic QR scanning...');
           startScanning();
         }, 1000);
       } else {
+        logger.warn('❌ No cameras found');
         setStatusMessage('No se encontraron cámaras');
       }
       
       
     } catch (error) {
-      console.error('Error inicializando sistema:', error);
+      logger.error('Error inicializando sistema:', error.message);
+      logger.debug('Error stack:', error.stack);
       setStatusMessage('Error inicializando sistema');
     }
   };
@@ -122,13 +129,13 @@ function QRLector() {
       // Verificar permisos primero (skip si no está disponible)
       try {
         const result = await navigator.permissions.query({ name: 'camera' });
-        console.log('Permission status:', result.state);
+        logger.log('Permission status:', result.state);
         
         if (result.state === 'denied') {
           throw new Error('Permisos de cámara denegados');
         }
       } catch (permError) {
-        console.warn('navigator.permissions no disponible, saltando verificación:', permError);
+        logger.warn('navigator.permissions no disponible, saltando verificación:', permError.message);
       }
       
       const constraints = {
@@ -140,18 +147,21 @@ function QRLector() {
         }
       };
       
+      logger.debug('📹 Requesting video stream with constraints:', constraints);
+      
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play().catch(console.error);
+          videoRef.current.play().catch(logger.error);
         };
       }
       
-      console.log('Stream de video inicializado');
+      logger.log('✓ Stream de video inicializado');
     } catch (error) {
-      console.error('Error inicializando stream de video:', error);
+      logger.error('Error inicializando stream de video:', error.message);
+      logger.debug('Video stream error details:', error);
       let errorMessage = 'Error accediendo a la cámara';
       
       if (error.name === 'NotAllowedError' || error.message.includes('denegados')) {
@@ -174,11 +184,13 @@ function QRLector() {
     if (!selectedDevice || isScanning) return;
     
     try {
+      logger.log('🔍 Starting QR scanning...');
       setIsScanning(true);
       setStatusMessage('Escaneando automáticamente - Apunte códigos QR...');
       
       // Si no hay stream de video, inicializarlo
       if (!videoRef.current?.srcObject) {
+        logger.debug('No video stream found, initializing...');
         await initializeVideoStream(selectedDevice);
       }
       
@@ -192,18 +204,20 @@ function QRLector() {
           }
           // Ignorar errores comunes de no encontrar QR
           if (error && error.message && !error.message.includes('No QR code found') && !error.message.includes('NotFoundException')) {
-            console.warn('Error escaneando:', error);
+            logger.warn('Error escaneando:', error.message);
           }
         }
       );
     } catch (error) {
-      console.error('Error iniciando escaneo:', error);
+      logger.error('Error iniciando escaneo:', error.message);
+      logger.debug('Scanning error details:', error);
       setStatusMessage('Error accediendo a la cámara');
       setIsScanning(false);
     }
   };
 
   const stopScanning = () => {
+    logger.log('⏸️ Stopping QR scanning...');
     if (codeReader.current) {
       codeReader.current.reset();
     }
@@ -217,11 +231,14 @@ function QRLector() {
     
     if (isElectron) {
       // Entorno Electron - usar IPC
-      console.log('🖥️ Procesando QR via Electron IPC');
+      logger.log('🖥️ Procesando QR via Electron IPC');
+      logger.debug('QR data being processed:', JSON.stringify(qrData).slice(0, 200));
       return await window.electronAPI.database.processQR(qrData);
     } else {
       // Entorno Web - usar HTTP directo
-      console.log('🌐 Procesando QR via HTTP API');
+      logger.log('🌐 Procesando QR via HTTP API');
+      logger.debug('API URL:', `${baseUrl}/qr/process`);
+      logger.debug('QR data being sent:', JSON.stringify(qrData).slice(0, 200));
       const baseUrl = getBackendURL();
       const apiUrl = `${baseUrl}/qr/process`;
       
@@ -251,11 +268,14 @@ function QRLector() {
 
   const handleQRResult = async (qrData) => {
     try {
-      console.log('QR detectado:', qrData);
+      logger.log('📱 QR detectado:', qrData.slice(0, 100));
+      logger.debug('Full QR data:', qrData);
       setStatusMessage('Procesando QR...');
       
       // Procesar QR según el entorno
+      logger.debug('🔄 Processing QR data...');
       const result = await processQRData(qrData);
+      logger.debug('QR process result:', result);
       
       if (result) {
         setLastResult({
@@ -265,7 +285,7 @@ function QRLector() {
         
         if (result.success) {
           setStatusMessage(`${result.tipo} registrada`);
-          console.log(`ACCESO REGISTRADO: ${result.tipo} - ${result.message}`);
+          logger.log(`✅ ACCESO REGISTRADO: ${result.tipo} - ${result.message}`);
           
           // Pausar escaneo temporalmente y mostrar pantalla de confirmación
           stopScanning();
@@ -273,6 +293,7 @@ function QRLector() {
           
           // Ocultar confirmación después de 3 segundos y reanudar escaneo
           setTimeout(() => {
+            logger.debug('🔄 Resuming scanning after confirmation');
             setShowConfirmation(false);
             setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
             
@@ -284,7 +305,8 @@ function QRLector() {
         } else {
           // Manejar errores específicos
           setStatusMessage(`Error: ${result.message}`);
-          console.log(`ERROR DE REGISTRO: ${result.message}`);
+          logger.warn(`❌ ERROR DE REGISTRO: ${result.message}`);
+          logger.debug('Error details:', result);
           
           // Pausar escaneo temporalmente y mostrar pantalla de error
           stopScanning();
@@ -292,6 +314,7 @@ function QRLector() {
           
           // Ocultar confirmación después de 3 segundos y reanudar escaneo
           setTimeout(() => {
+            logger.debug('🔄 Resuming scanning after error display');
             setShowConfirmation(false);
             setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
             
@@ -306,7 +329,8 @@ function QRLector() {
       }
       
     } catch (error) {
-      console.error('Error procesando QR:', error);
+      logger.error('Error procesando QR:', error.message);
+      logger.debug('QR processing error stack:', error.stack);
       setStatusMessage('Error procesando QR');
     }
   };
@@ -317,7 +341,9 @@ function QRLector() {
     
     if (isElectron) {
       // En Electron, usar la configuración del proceso principal
-      return process.env.API_BASE_URL || 'http://localhost:3001/api';
+      const url = process.env.API_BASE_URL || 'http://localhost:3001/api';
+      logger.debug('Backend URL (Electron):', url);
+      return url;
     } else {
       // En web, usar las variables de Next.js que están expuestas al browser
       const apiBaseUrl = process.env.API_BASE_URL;
@@ -329,6 +355,7 @@ function QRLector() {
           : 'http://localhost:3001/api'
       );
       
+      logger.debug('Backend URL (Web):', finalUrl);
       return finalUrl;
     }
   };
@@ -338,11 +365,13 @@ function QRLector() {
     const isElectron = typeof window !== 'undefined' && window.electronAPI;
     
     try {
+      logger.debug('🔍 Checking backend connection...');
       setBackendStatus('checking');
       
       if (isElectron) {
         // En Electron, verificar a través del IPC
         const result = await window.electronAPI.database.checkConnection();
+        logger.debug('Backend check result (Electron):', result);
         setBackendStatus(result.success ? 'connected' : 'disconnected');
       } else {
         // En web, hacer petición HTTP al endpoint de health
@@ -353,26 +382,32 @@ function QRLector() {
           ? baseUrl.slice(0, -4) + '/health'  // Remover los últimos 4 caracteres (/api)
           : baseUrl + '/health';
         
+        logger.debug('Health check URL:', healthUrl);
+        
         const response = await fetch(healthUrl, {
           method: 'GET',
           timeout: 5000
         });
         
+        logger.debug('Health check response:', response.status, response.statusText);
         setBackendStatus(response.ok ? 'connected' : 'disconnected');
       }
     } catch (error) {
-      console.error('Error verificando conexión backend:', error);
+      logger.error('Error verificando conexión backend:', error.message);
+      logger.debug('Backend connection error:', error);
       setBackendStatus('disconnected');
     }
   };
 
   const retryCamera = async () => {
+    logger.log('🔄 Retrying camera initialization...');
     setCameraActive(false);
     setStatusMessage('Reintentando cámara...');
     
     // Limpiar stream actual
     if (videoRef.current && videoRef.current.srcObject) {
       const tracks = videoRef.current.srcObject.getTracks();
+      logger.debug('Stopping existing video tracks:', tracks.length);
       tracks.forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
@@ -382,6 +417,7 @@ function QRLector() {
     // Reiniciar escaneo automático si la cámara vuelve a estar disponible
     setTimeout(() => {
       if (cameraActive && !isScanning) {
+        logger.debug('🚀 Auto-starting scanning after camera retry');
         startScanning();
       }
     }, 1500);

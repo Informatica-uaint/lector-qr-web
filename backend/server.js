@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+const logger = require('./utils/logger');
 const qrRoutes = require('./routes/qr');
 const dbRoutes = require('./routes/database');
 
@@ -47,7 +48,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Middleware de logging
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  logger.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  logger.debug(`Headers:`, req.headers);
+  if (req.body && Object.keys(req.body).length > 0) {
+    logger.debug(`Body:`, JSON.stringify(req.body).slice(0, 500));
+  }
   next();
 });
 
@@ -72,7 +77,8 @@ app.get('/', (req, res) => {
 
 // Middleware de manejo de errores
 app.use((error, req, res, next) => {
-  console.error('Error:', error);
+  logger.error('💥 Server Error:', error.message);
+  logger.debug('Error stack:', error.stack);
   res.status(error.status || 500).json({
     success: false,
     message: error.message || 'Error interno del servidor',
@@ -91,22 +97,24 @@ app.use('*', (req, res) => {
 
 // Iniciar servidor
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 QR Lector API ejecutándose en puerto ${PORT}`);
-  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🗄️ Base de datos: ${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT}/${process.env.MYSQL_DB}`);
-  console.log(`🔗 Health check local: http://localhost:${PORT}/health`);
+  logger.log(`🚀 QR Lector API ejecutándose en puerto ${PORT}`);
+  logger.log(`📊 Environment: ${process.env.NODE_ENV}`);
+  logger.log(`🗄️ Base de datos: ${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT}/${process.env.MYSQL_DB}`);
+  logger.log(`🔗 Health check local: http://localhost:${PORT}/health`);
+  logger.log(`🌐 CORS origins:`, allowedOrigins);
   if (process.env.NODE_ENV === 'production') {
-    console.log(`🌐 Health check: https://api.lector.lab.informaticauaint.com/health`);
+    logger.log(`🌐 Health check: https://api.lector.lab.informaticauaint.com/health`);
   }
+  logger.debug('Server started with full configuration');
 });
 
 // Manejo de cierre graceful
 process.on('SIGTERM', () => {
-  console.log('🛑 Cerrando servidor gracefully...');
+  logger.log('🛑 Cerrando servidor gracefully...');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('🛑 Cerrando servidor gracefully...');  
+  logger.log('🛑 Cerrando servidor gracefully...');  
   process.exit(0);
 });
