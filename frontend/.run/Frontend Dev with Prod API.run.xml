@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration name="Frontend Dev with Prod API" type="js.build_tools.npm" nameIsGenerated="true">
+  <package-json value="$PROJECT_DIR$/frontend/package.json" />
+  <command value="run" />
+  <scripts>
+    <script value="dev" />
+  </scripts>
+  <envs>
+    <env name="NODE_ENV" value="development" />
+    <env name="API_BASE_URL" value="https://api.lector.lab.informaticauaint.com/api" />
+    <env name="NEXT_TELEMETRY_DISABLED" value="1" />
+  </envs>
+  <node-interpreter value="project" />
+  <method v="2">
+    <option name="RunConfigurationTask" enabled="true" run_configuration_name="Load .env.production-api" run_configuration_type="ShConfigurationType" />
+  </method>
+</configuration>

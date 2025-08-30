@@ -7,6 +7,7 @@
     "dev": "concurrently \"npm run dev:next\" \"npm run dev:electron\"",
     "dev:next": "next dev -p 3020 -H 0.0.0.0",
     "dev:electron": "wait-on http://localhost:3020 && electron .",
+    "dev:web-prod-api": "env-cmd -f .env.production-api next dev -p 3020 -H 0.0.0.0",
     "build": "next build",
     "build:electron": "npm run build && electron-builder",
     "start": "next start",
@@ -27,6 +28,7 @@
     "concurrently": "^8.2.2",
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4",
+    "env-cmd": "^10.1.0",
     "wait-on": "^7.0.1"
   },
   "dependencies": {
