@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { BrowserQRCodeReader } from '@zxing/library';
-import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX } from 'react-icons/fi';
+import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import logger from '../utils/clientLogger';
 
 function QRLector() {
@@ -14,6 +14,7 @@ function QRLector() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [backendStatus, setBackendStatus] = useState('checking'); // 'connected', 'disconnected', 'checking'
   const [assistantsStatus, setAssistantsStatus] = useState({ present: false, count: 0, loading: false });
+  const [systemStatusExpanded, setSystemStatusExpanded] = useState(false);
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
@@ -508,20 +509,34 @@ function QRLector() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <img 
+                src="/assets/informaticauaint-logo.png" 
+                alt="Universidad Adolfo Ibáñez - Informática" 
+                className="h-8 w-8"
+              />
               QR LECTOR LABORATORIO
             </h1>
             <p className="text-slate-300 text-sm">Universidad Adolfo Ibáñez - Informática - Electron + MySQL</p>
           </div>
           
           <div className="flex items-center gap-4">
-            {/* Header sin indicadores */}
+            {/* Estado del laboratorio */}
+            <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${
+              assistantsStatus.loading ? 'bg-yellow-500/20 text-yellow-300' :
+              assistantsStatus.count === 0 ? 'bg-red-500/20 text-red-300' :
+              assistantsStatus.count === 1 ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
+            }`}>
+              {assistantsStatus.loading ? 'VERIFICANDO...' :
+               assistantsStatus.count === 0 ? '🔒 CERRADO' :
+               assistantsStatus.count === 1 ? '🟡 ABIERTO' : '🟢 ABIERTO'}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex p-6 gap-6 min-h-[calc(100vh-120px)]">
+      <div className="flex p-6 gap-6 h-[calc(100vh-120px)]">
         {/* Panel izquierdo - Cámara */}
-        <div className="flex-1 bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-6">
+        <div className="flex-1 bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <FiCamera className="text-blue-400" />
@@ -554,11 +569,11 @@ function QRLector() {
           </div>
           
           {/* Video container */}
-          <div className="relative bg-black rounded-lg overflow-hidden aspect-video min-h-[300px] max-h-[70vh]">
+          <div className="relative bg-black rounded-lg overflow-hidden flex-1 flex items-center justify-center">
             {cameraActive ? (
               <video
                 ref={videoRef}
-                className="w-full h-full object-contain"
+                className="max-w-full max-h-full object-contain rounded-lg"
                 playsInline
                 muted
                 autoPlay
@@ -622,63 +637,81 @@ function QRLector() {
         </div>
 
         {/* Panel derecho - Estado e información */}
-        <div className="w-80 space-y-6">
+        <div className={`w-80 flex flex-col gap-4 max-h-full ${
+          systemStatusExpanded ? 'overflow-y-auto' : 'overflow-y-hidden'
+        }`}>
           {/* Estado del sistema */}
-          <div className="bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <FiWifi className="text-green-400" />
-              Estado del Sistema
-            </h3>
+          <div className="bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50">
+            <button
+              onClick={() => setSystemStatusExpanded(!systemStatusExpanded)}
+              className="w-full p-6 text-left hover:bg-slate-700/20 transition-colors"
+            >
+              <h3 className="text-lg font-semibold flex items-center gap-2 justify-between">
+                <div className="flex items-center gap-2">
+                  <FiWifi className="text-green-400" />
+                  Estado del Sistema
+                </div>
+                {systemStatusExpanded ? (
+                  <FiChevronUp className="text-slate-400" />
+                ) : (
+                  <FiChevronDown className="text-slate-400" />
+                )}
+              </h3>
+            </button>
             
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Backend:</span>
-                <span className={`font-semibold ${
-                  backendStatus === 'connected' ? 'text-green-400' : 
-                  backendStatus === 'disconnected' ? 'text-red-400' : 'text-yellow-400'
-                }`}>
-                  {backendStatus === 'connected' ? 'CONECTADO' : 
-                   backendStatus === 'disconnected' ? 'DESCONECTADO' : 'VERIFICANDO...'}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Cámara:</span>
-                <span className={`font-semibold ${cameraActive ? 'text-green-400' : 'text-red-400'}`}>
-                  {cameraActive ? 'OPERATIVA' : 'ERROR'}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Escaneando:</span>
-                <span className={`font-semibold ${isScanning ? 'text-blue-400' : 'text-slate-500'}`}>
-                  {isScanning ? 'ACTIVO' : 'INACTIVO'}
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-slate-300">Ayudantes:</span>
-                <span className={`font-semibold ${
-                  assistantsStatus.loading ? 'text-yellow-400 animate-pulse' :
-                  assistantsStatus.count === 0 ? 'text-red-400' :
-                  assistantsStatus.count === 1 ? 'text-yellow-400' : 'text-green-400'
-                }`}>
-                  {assistantsStatus.loading ? 'VERIFICANDO...' : assistantsStatus.count}
-                </span>
+            <div className={`transition-all duration-300 overflow-hidden ${
+              systemStatusExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+            }`}>
+              <div className="px-6 pb-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300">Backend:</span>
+                  <span className={`font-semibold ${
+                    backendStatus === 'connected' ? 'text-green-400' : 
+                    backendStatus === 'disconnected' ? 'text-red-400' : 'text-yellow-400'
+                  }`}>
+                    {backendStatus === 'connected' ? 'CONECTADO' : 
+                     backendStatus === 'disconnected' ? 'DESCONECTADO' : 'VERIFICANDO...'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300">Cámara:</span>
+                  <span className={`font-semibold ${cameraActive ? 'text-green-400' : 'text-red-400'}`}>
+                    {cameraActive ? 'OPERATIVA' : 'ERROR'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300">Escaneando:</span>
+                  <span className={`font-semibold ${isScanning ? 'text-blue-400' : 'text-slate-500'}`}>
+                    {isScanning ? 'ACTIVO' : 'INACTIVO'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-300">Ayudantes:</span>
+                  <span className={`font-semibold ${
+                    assistantsStatus.loading ? 'text-yellow-400 animate-pulse' :
+                    assistantsStatus.count === 0 ? 'text-red-400' :
+                    assistantsStatus.count === 1 ? 'text-yellow-400' : 'text-green-400'
+                  }`}>
+                    {assistantsStatus.loading ? 'VERIFICANDO...' : assistantsStatus.count}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Generación de QR */}
-          <div className="bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-6">
-            <h3 className="text-lg font-semibold mb-4 text-center">Genera tu QR</h3>
+          <div className="bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-4">
+            <h3 className="text-md font-semibold mb-3 text-center">Genera tu QR</h3>
             <div className="text-center">
-              <div className="bg-white p-2 rounded-lg inline-block mb-4">
+              <div className="bg-white p-2 rounded-lg inline-block mb-3">
                 {/* QR Code placeholder - replace with actual QR image URL */}
                 <img 
                   src="/assets/qr-acceso.png" 
                   alt="QR Code para acceso.informaticauaint.com"
-                  className="w-64 h-64 mx-auto"
+                  className="w-48 h-48 mx-auto"
                   onError={(e) => {
                     // Fallback if CDN image doesn't load
                     e.target.style.display = 'none';
@@ -686,7 +719,7 @@ function QRLector() {
                   }}
                 />
                 {/* Fallback QR text */}
-                <div className="w-64 h-64 bg-slate-100 flex items-center justify-center text-slate-800 text-sm text-center hidden">
+                <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-slate-800 text-sm text-center hidden">
                   QR para<br/>acceso.informaticauaint.com
                 </div>
               </div>
@@ -699,7 +732,35 @@ function QRLector() {
             </div>
           </div>
 
-
+          {/* Discord QR */}
+          <div className="bg-slate-800/30 rounded-xl backdrop-blur-sm border border-slate-700/50 p-4">
+            <h3 className="text-md font-semibold mb-3 text-center">Únete a Discord</h3>
+            <div className="text-center">
+              <div className="bg-white p-2 rounded-lg inline-block mb-3">
+                {/* Discord QR Code */}
+                <img 
+                  src="/assets/qr-discord.png" 
+                  alt="QR Code para Discord de Informática UAI"
+                  className="w-48 h-48 mx-auto"
+                  onError={(e) => {
+                    // Fallback if QR image doesn't load
+                    e.target.style.display = 'none';
+                    e.target.nextElementSibling.style.display = 'flex';
+                  }}
+                />
+                {/* Fallback Discord text */}
+                <div className="w-48 h-48 bg-slate-100 flex items-center justify-center text-slate-800 text-sm text-center hidden">
+                  QR para<br/>Discord Informática UAI
+                </div>
+              </div>
+              <p className="text-slate-300 text-sm">
+                Únete al servidor de Discord
+              </p>
+              <p className="text-slate-400 text-xs mt-2">
+                Comunidad Informática UAI
+              </p>
+            </div>
+          </div>
 
         </div>
       </div>
