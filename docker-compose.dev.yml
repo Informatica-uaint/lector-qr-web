@@ -1,12 +1,12 @@
-version: '3.8'
-
 # Development environment with local database
 services:
   mysql-dev:
     image: mysql:8.0
     container_name: qr-mysql-dev
+    env_file:
+      - .env.docker.dev
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DB}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}

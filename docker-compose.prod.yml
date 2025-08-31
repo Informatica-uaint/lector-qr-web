@@ -3,6 +3,8 @@ services:
   mysql-prod:
     image: mysql:8.0
     container_name: qr-mysql-prod
+    env_file:
+      - .env.docker.prod
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DB}
