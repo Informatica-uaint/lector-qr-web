@@ -116,7 +116,9 @@ function QRLector() {
         // Iniciar escaneo automático después de un pequeño delay
         setTimeout(() => {
           logger.debug('🚀 Starting automatic QR scanning...');
-          startScanning();
+          logger.debug('selectedDevice:', cameras[0].deviceId);
+          logger.debug('isScanning before start:', false); // será false al inicio
+          startScanning(cameras[0].deviceId);
         }, 1000);
       } else {
         logger.warn('❌ No cameras found');
@@ -187,8 +189,9 @@ function QRLector() {
   };
 
 
-  const startScanning = async () => {
-    if (!selectedDevice || isScanning) return;
+  const startScanning = async (deviceId = null) => {
+    const device = deviceId || selectedDevice;
+    if (!device || isScanning) return;
     
     try {
       logger.log('🔍 Starting QR scanning...');
@@ -198,12 +201,12 @@ function QRLector() {
       // Si no hay stream de video, inicializarlo
       if (!videoRef.current?.srcObject) {
         logger.debug('No video stream found, initializing...');
-        await initializeVideoStream(selectedDevice);
+        await initializeVideoStream(device);
       }
       
       // Iniciar detección QR
       await codeReader.current.decodeFromVideoDevice(
-        selectedDevice,
+        device,
         videoRef.current,
         (result, error) => {
           if (result) {
@@ -516,7 +519,7 @@ function QRLector() {
               />
               QR LECTOR LABORATORIO
             </h1>
-            <p className="text-slate-300 text-sm">Universidad Adolfo Ibáñez - Informática - Electron + MySQL</p>
+            <p className="text-slate-300 text-sm">Universidad Adolfo Ibáñez - Informatica UAIn'T</p>
           </div>
           
           <div className="flex items-center gap-4">
