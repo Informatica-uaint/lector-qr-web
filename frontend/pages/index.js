@@ -243,9 +243,9 @@ function QRLector() {
     } else {
       // Entorno Web - usar HTTP directo
       logger.log('🌐 Procesando QR via HTTP API');
+      const baseUrl = getBackendURL();
       logger.debug('API URL:', `${baseUrl}/qr/process`);
       logger.debug('QR data being sent:', JSON.stringify(qrData).slice(0, 200));
-      const baseUrl = getBackendURL();
       const apiUrl = `${baseUrl}/qr/process`;
       
       const response = await fetch(apiUrl, {
