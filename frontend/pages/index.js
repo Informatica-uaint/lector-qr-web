@@ -565,6 +565,20 @@ function QRLector() {
                 <FiRefreshCw size={14} />
                 Reintentar
               </button>
+              
+              {cameraActive && (
+                <button
+                  onClick={isScanning ? stopScanning : startScanning}
+                  className={`px-3 py-1 rounded text-sm flex items-center gap-1 transition-colors ${
+                    isScanning 
+                      ? 'bg-orange-600 hover:bg-orange-700' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {isScanning ? <FiPause size={14} /> : <FiPlay size={14} />}
+                  {isScanning ? 'Pausar' : 'Reanudar'}
+                </button>
+              )}
             </div>
           </div>
           
@@ -608,32 +622,18 @@ function QRLector() {
             )}
           </div>
           
-          {/* Controles de cámara */}
-          <div className="mt-4 flex gap-3">
-            {cameraActive && (
-              <button
-                onClick={isScanning ? stopScanning : startScanning}
-                className={`flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors ${
-                  isScanning 
-                    ? 'bg-orange-600 hover:bg-orange-700' 
-                    : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                {isScanning ? <FiPause /> : <FiPlay />}
-                {isScanning ? 'PAUSAR ESCANEO' : 'REANUDAR ESCANEO'}
-              </button>
-            )}
-            
-            {typeof window !== 'undefined' && window.electronAPI && (
+          {/* Control de salir */}
+          {typeof window !== 'undefined' && window.electronAPI && (
+            <div className="mt-4">
               <button
                 onClick={() => window.electronAPI.quitApp()}
-                className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold flex items-center gap-2"
+                className="w-full bg-red-600 hover:bg-red-700 py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
               >
                 <FiX />
                 SALIR
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Panel derecho - Estado e información */}
