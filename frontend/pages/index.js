@@ -115,9 +115,6 @@ function QRLector() {
         
         // Iniciar escaneo automático después de un pequeño delay
         setTimeout(() => {
-          logger.debug('🚀 Starting automatic QR scanning...');
-          logger.debug('selectedDevice:', cameras[0].deviceId);
-          logger.debug('isScanning before start:', false); // será false al inicio
           startScanning(cameras[0].deviceId);
         }, 1000);
       } else {
@@ -189,21 +186,28 @@ function QRLector() {
   };
 
 
-  const startScanning = async (deviceId = null) => {
-    const device = deviceId || selectedDevice;
-    if (!device || isScanning) return;
+  const startScanning = async (deviceId = null, forceStart = false) => {
+    // Si deviceId es un evento del DOM, ignorarlo
+    const cleanDeviceId = (deviceId && typeof deviceId === 'string') ? deviceId : null;
+    const device = cleanDeviceId || selectedDevice;
+    
+    if (!device || (isScanning && !forceStart)) return;
     
     try {
       logger.log('🔍 Starting QR scanning...');
+      
       setIsScanning(true);
       setStatusMessage('Escaneando automáticamente - Apunte códigos QR...');
       
-      // Si no hay stream de video, inicializarlo
-      if (!videoRef.current?.srcObject) {
-        logger.debug('No video stream found, initializing...');
-        await initializeVideoStream(device);
+      // Verificar que el codeReader esté disponible
+      if (!codeReader.current) {
+        codeReader.current = new BrowserQRCodeReader();
       }
       
+      // Si no hay stream de video, inicializarlo
+      if (!videoRef.current?.srcObject) {
+        await initializeVideoStream(device);
+      }
       // Iniciar detección QR
       await codeReader.current.decodeFromVideoDevice(
         device,
@@ -407,13 +411,10 @@ function QRLector() {
     const isElectron = typeof window !== 'undefined' && window.electronAPI;
     
     try {
-      logger.debug('👥 Checking assistants status...');
       setAssistantsStatus(prev => ({ ...prev, loading: true }));
       
       const baseUrl = getBackendURL();
       const assistantsUrl = `${baseUrl}/door/assistants-status`;
-      
-      logger.debug('Assistants check URL:', assistantsUrl);
       
       const response = await fetch(assistantsUrl, {
         method: 'GET',
@@ -422,7 +423,6 @@ function QRLector() {
       
       if (response.ok) {
         const data = await response.json();
-        logger.debug('Assistants status result:', data);
         
         setAssistantsStatus({
           present: data.assistantsPresent || false,
@@ -446,13 +446,11 @@ function QRLector() {
     const isElectron = typeof window !== 'undefined' && window.electronAPI;
     
     try {
-      logger.debug('🔍 Checking backend connection...');
       setBackendStatus('checking');
       
       if (isElectron) {
         // En Electron, verificar a través del IPC
         const result = await window.electronAPI.database.checkConnection();
-        logger.debug('Backend check result (Electron):', result);
         setBackendStatus(result.success ? 'connected' : 'disconnected');
       } else {
         // En web, hacer petición HTTP al endpoint de health
@@ -463,20 +461,64 @@ function QRLector() {
           ? baseUrl.slice(0, -4) + '/health'  // Remover los últimos 4 caracteres (/api)
           : baseUrl + '/health';
         
-        logger.debug('Health check URL:', healthUrl);
-        
         const response = await fetch(healthUrl, {
           method: 'GET',
           timeout: 5000
         });
         
-        logger.debug('Health check response:', response.status, response.statusText);
         setBackendStatus(response.ok ? 'connected' : 'disconnected');
       }
     } catch (error) {
       logger.error('Error verificando conexión backend:', error.message);
-      logger.debug('Backend connection error:', error);
       setBackendStatus('disconnected');
+    }
+  };
+
+  const handleCameraChange = async (newDeviceId) => {
+    logger.log('📹 Changing camera to:', newDeviceId);
+    const wasScanning = isScanning;
+    
+    // Detener escaneo actual si está activo
+    if (isScanning) {
+      stopScanning();
+    }
+    
+    // Recrear completamente el codeReader
+    if (codeReader.current) {
+      codeReader.current.reset();
+    }
+    codeReader.current = new BrowserQRCodeReader();
+    
+    // Limpiar stream actual
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = videoRef.current.srcObject.getTracks();
+      tracks.forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    
+    // Actualizar device seleccionado
+    setSelectedDevice(newDeviceId);
+    setStatusMessage('Cambiando cámara...');
+    
+    try {
+      // Inicializar nueva cámara
+      await initializeVideoStream(newDeviceId);
+      
+      // Si estaba escaneando antes, reanudar automáticamente
+      if (wasScanning) {
+        setTimeout(() => {
+          setIsScanning(false);
+          setTimeout(() => {
+            startScanning(newDeviceId, true);
+          }, 100);
+        }, 500);
+      } else {
+        setStatusMessage('Cámara cambiada - Listo para escanear');
+      }
+    } catch (error) {
+      logger.error('Error changing camera:', error.message);
+      setStatusMessage('Error cambiando cámara');
+      setCameraActive(false);
     }
   };
 
@@ -498,7 +540,6 @@ function QRLector() {
     // Reiniciar escaneo automático si la cámara vuelve a estar disponible
     setTimeout(() => {
       if (cameraActive && !isScanning) {
-        logger.debug('🚀 Auto-starting scanning after camera retry');
         startScanning();
       }
     }, 1500);
@@ -550,7 +591,7 @@ function QRLector() {
               {devices.length > 1 && (
                 <select 
                   value={selectedDevice}
-                  onChange={(e) => setSelectedDevice(e.target.value)}
+                  onChange={(e) => handleCameraChange(e.target.value)}
                   className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm"
                 >
                   {devices.map((device) => (
@@ -571,7 +612,7 @@ function QRLector() {
               
               {cameraActive && (
                 <button
-                  onClick={isScanning ? stopScanning : startScanning}
+                  onClick={isScanning ? stopScanning : () => startScanning()}
                   className={`px-3 py-1 rounded text-sm flex items-center gap-1 transition-colors ${
                     isScanning 
                       ? 'bg-orange-600 hover:bg-orange-700' 
