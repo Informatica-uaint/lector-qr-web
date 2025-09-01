@@ -356,9 +356,10 @@ function QRLector() {
             setShowConfirmation(false);
             setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
             
-            // Reanudar escaneo automático si no está ya escaneando
-            if (!isScanning && cameraActive) {
-              startScanning();
+            // Forzar reanudación del escaneo automático
+            if (cameraActive) {
+              logger.debug('🔄 Force restarting scan after successful QR');
+              startScanning(null, true); // Forzar reinicio
             }
           }, 3000);
         } else {
@@ -377,9 +378,10 @@ function QRLector() {
             setShowConfirmation(false);
             setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
             
-            // Reanudar escaneo automático si no está ya escaneando
-            if (!isScanning && cameraActive) {
-              startScanning();
+            // Forzar reanudación del escaneo automático
+            if (cameraActive) {
+              logger.debug('🔄 Force restarting scan after error display');
+              startScanning(null, true); // Forzar reinicio
             }
           }, 3000);
         }
