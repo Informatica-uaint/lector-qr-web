@@ -29,8 +29,8 @@ function QRLector() {
     // Verificar conexión con backend cada 30 segundos
     const backendCheck = setInterval(checkBackendConnection, 30000);
     
-    // Verificar estado de ayudantes cada 60 segundos
-    const assistantsCheck = setInterval(checkAssistantsStatus, 60000);
+    // Verificar estado de ayudantes cada 15 segundos
+    const assistantsCheck = setInterval(checkAssistantsStatus, 15000);
     checkAssistantsStatus(); // Check inicial
     
     // Obtener versión del backend
@@ -336,18 +336,8 @@ function QRLector() {
               // Aquí podrías agregar lógica adicional para indicar apertura de puerta
             }
             
-            // Actualizar estado de ayudantes si está disponible
-            if (result.door && typeof result.door.assistantsPresent === 'boolean') {
-              setAssistantsStatus(prev => ({
-                ...prev,
-                present: result.door.assistantsPresent,
-                count: result.door.count || prev.count,
-                lastCheck: new Date().toLocaleTimeString()
-              }));
-            } else {
-              // Si no hay información específica de la puerta, actualizar el estado manualmente
-              checkAssistantsStatus();
-            }
+            // Siempre actualizar el estado de ayudantes después de un QR exitoso
+            checkAssistantsStatus();
           }
           
           // Pausar escaneo temporalmente y mostrar pantalla de confirmación
