@@ -168,7 +168,7 @@ function QRLector() {
         
         // Quitar loading cuando el video empiece a reproducir
         videoRef.current.onplaying = () => {
-          setTimeout(() => setCameraLoading(false), 500); // Pequeño delay para suavizar
+          setTimeout(() => setCameraLoading(false), 1200); // Delay aumentado para asegurar carga completa
         };
       }
       
