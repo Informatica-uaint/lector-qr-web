@@ -560,21 +560,23 @@ function QRLector() {
       {/* Header */}
       <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <img 
-                src="/assets/informaticauaint-logo.png" 
-                alt="Universidad Adolfo Ibáñez - Informática" 
-                className="h-8 w-8"
-              />
-              QR LECTOR LABORATORIO
-            </h1>
-            <p className="text-slate-300 text-sm">Universidad Adolfo Ibáñez - Informatica UAIn'T</p>
+          <div className="flex items-center gap-3">
+            <img 
+              src="/assets/informaticauaint-logo.png" 
+              alt="Universidad Adolfo Ibáñez - Informática" 
+              className="h-12 w-12 rounded-lg"
+            />
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                QR LECTOR LABORATORIO
+              </h1>
+              <p className="text-slate-300 text-sm">Universidad Adolfo Ibáñez - Informatica UAIn'T</p>
+            </div>
           </div>
           
           <div className="flex items-center gap-4">
             {/* Estado del laboratorio */}
-            <div className={`px-4 py-2 rounded-lg font-semibold text-sm ${
+            <div className={`px-6 py-3 rounded-lg font-semibold text-base ${
               assistantsStatus.loading ? 'bg-yellow-500/20 text-yellow-300' :
               assistantsStatus.count === 0 ? 'bg-red-500/20 text-red-300' :
               assistantsStatus.count === 1 ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'
