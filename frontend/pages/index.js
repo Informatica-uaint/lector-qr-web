@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { BrowserQRCodeReader } from '@zxing/library';
-import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX, FiChevronDown, FiChevronUp, FiRotateCcw } from 'react-icons/fi';
 import logger from '../utils/clientLogger';
 
 function QRLector() {
@@ -15,6 +15,7 @@ function QRLector() {
   const [backendStatus, setBackendStatus] = useState('checking'); // 'connected', 'disconnected', 'checking'
   const [assistantsStatus, setAssistantsStatus] = useState({ present: false, count: 0, loading: false });
   const [systemStatusExpanded, setSystemStatusExpanded] = useState(false);
+  const [cameraFlipped, setCameraFlipped] = useState(false);
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
@@ -610,6 +611,15 @@ function QRLector() {
                 Reintentar
               </button>
               
+              <button
+                onClick={() => setCameraFlipped(!cameraFlipped)}
+                className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm flex items-center gap-1"
+                title="Invertir cámara (modo espejo)"
+              >
+                <FiRotateCcw size={14} />
+                Invertir
+              </button>
+              
               {cameraActive && (
                 <button
                   onClick={isScanning ? stopScanning : () => startScanning()}
@@ -631,7 +641,10 @@ function QRLector() {
             {cameraActive ? (
               <video
                 ref={videoRef}
-                className="max-w-full max-h-full object-contain rounded-lg"
+                className="max-w-full max-h-full object-contain rounded-lg transition-transform duration-300"
+                style={{
+                  transform: cameraFlipped ? 'scaleX(-1)' : 'scaleX(1)'
+                }}
                 playsInline
                 muted
                 autoPlay
