@@ -17,6 +17,7 @@ function QRLector() {
   const [systemStatusExpanded, setSystemStatusExpanded] = useState(false);
   const [cameraFlipped, setCameraFlipped] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [backendVersion, setBackendVersion] = useState(null);
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
@@ -31,6 +32,9 @@ function QRLector() {
     // Verificar estado de ayudantes cada 60 segundos
     const assistantsCheck = setInterval(checkAssistantsStatus, 60000);
     checkAssistantsStatus(); // Check inicial
+    
+    // Obtener versión del backend
+    fetchBackendVersion();
     
     return () => {
       stopScanning();
@@ -489,6 +493,28 @@ function QRLector() {
     }
   };
 
+  // Obtener versión del backend
+  const fetchBackendVersion = async () => {
+    try {
+      const baseUrl = getBackendURL();
+      const versionUrl = `${baseUrl}/version`;
+      
+      const response = await fetch(versionUrl, {
+        method: 'GET',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setBackendVersion(data.version);
+      } else {
+        logger.warn('Failed to get backend version:', response.status);
+      }
+    } catch (error) {
+      logger.error('Error fetching backend version:', error.message);
+    }
+  };
+
   const handleCameraChange = async (newDeviceId) => {
     logger.log('📹 Changing camera to:', newDeviceId);
     const wasScanning = isScanning;
@@ -849,6 +875,14 @@ function QRLector() {
             </div>
           </div>
 
+        </div>
+      </div>
+
+      {/* Footer con versiones */}
+      <div className="fixed bottom-0 right-0 p-2 text-xs text-slate-500 bg-slate-900/50 rounded-tl-lg">
+        <div className="flex gap-3">
+          <span>Frontend: v1.5.1</span>
+          {backendVersion && <span>Backend: v{backendVersion}</span>}
         </div>
       </div>
 

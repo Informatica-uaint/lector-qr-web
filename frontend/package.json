@@ -1,6 +1,6 @@
 {
   "name": "qr-lector-electron",
-  "version": "1.0.0",
+  "version": "1.5.1",
   "description": "Lector QR moderno con Electron + React para laboratorio informática",
   "main": "public/main.js",
   "scripts": {
@@ -16,7 +16,10 @@
     "start:prod": "env-cmd -f .env.prod next start",
     "electron": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major"
   },
   "keywords": [
     "qr",

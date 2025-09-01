@@ -8,6 +8,7 @@ const logger = require('./utils/logger');
 const qrRoutes = require('./routes/qr');
 const dbRoutes = require('./routes/database');
 const doorRoutes = require('./routes/door');
+const packageJson = require('./package.json');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -70,7 +71,17 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'QR Lector API',
-    version: '1.0.0'
+    version: packageJson.version
+  });
+});
+
+// Ruta para obtener versión del API
+app.get('/api/version', (req, res) => {
+  res.json({
+    success: true,
+    service: 'QR Lector API',
+    version: packageJson.version,
+    timestamp: new Date().toISOString()
   });
 });
 

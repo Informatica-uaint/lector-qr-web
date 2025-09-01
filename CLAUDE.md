@@ -60,6 +60,36 @@ docker-compose --profile web up -d
 docker-compose logs -f api
 ```
 
+## Gestión de Versiones
+
+### Scripts de Versionado (Semántico vX.Y.Z)
+
+Ambos proyectos (frontend y backend) incluyen scripts para manejar versiones siguiendo el estándar semántico:
+
+**Frontend (frontend/):**
+```bash
+cd frontend
+npm run version:patch   # 1.5.1 -> 1.5.2 (fixes y cambios pequeños)
+npm run version:minor   # 1.5.1 -> 1.6.0 (nuevas funcionalidades)
+npm run version:major   # 1.5.1 -> 2.0.0 (cambios grandes/breaking)
+```
+
+**Backend (backend/):**
+```bash
+cd backend
+npm run version:patch   # 1.5.1 -> 1.5.2 (fixes y cambios pequeños)
+npm run version:minor   # 1.5.1 -> 1.6.0 (nuevas funcionalidades)
+npm run version:major   # 1.5.1 -> 2.0.0 (cambios grandes/breaking)
+```
+
+### Criterios de Versionado
+- **Patch (Z)**: Corrección de bugs, mejoras menores de UI, optimizaciones
+- **Minor (Y)**: Nuevas funcionalidades, endpoints, componentes
+- **Major (X)**: Cambios arquitectónicos, breaking changes, reescrituras
+
+### Versión Actual: v1.5.1
+Las versiones se muestran automáticamente en el footer de la aplicación frontend.
+
 ## Environment Configuration
 
 ### Backend `.env` (backend/.env)
