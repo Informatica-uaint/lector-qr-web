@@ -337,8 +337,12 @@ function QRLector() {
               setAssistantsStatus(prev => ({
                 ...prev,
                 present: result.door.assistantsPresent,
+                count: result.door.count || prev.count,
                 lastCheck: new Date().toLocaleTimeString()
               }));
+            } else {
+              // Si no hay información específica de la puerta, actualizar el estado manualmente
+              checkAssistantsStatus();
             }
           }
           
