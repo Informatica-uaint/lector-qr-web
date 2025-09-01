@@ -16,6 +16,7 @@ function QRLector() {
   const [assistantsStatus, setAssistantsStatus] = useState({ present: false, count: 0, loading: false });
   const [systemStatusExpanded, setSystemStatusExpanded] = useState(false);
   const [cameraFlipped, setCameraFlipped] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(false);
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
@@ -132,6 +133,7 @@ function QRLector() {
   };
 
   const initializeVideoStream = async (deviceId) => {
+    setCameraLoading(true);
     try {
       // Verificar permisos primero (skip si no está disponible)
       try {
@@ -163,6 +165,11 @@ function QRLector() {
         videoRef.current.onloadedmetadata = () => {
           videoRef.current.play().catch(logger.error);
         };
+        
+        // Quitar loading cuando el video empiece a reproducir
+        videoRef.current.onplaying = () => {
+          setTimeout(() => setCameraLoading(false), 500); // Pequeño delay para suavizar
+        };
       }
       
       logger.log('✓ Stream de video inicializado');
@@ -183,6 +190,7 @@ function QRLector() {
       
       setStatusMessage(errorMessage);
       setCameraActive(false);
+      setCameraLoading(false);
     }
   };
 
@@ -637,7 +645,11 @@ function QRLector() {
           </div>
           
           {/* Video container */}
-          <div className="relative bg-black rounded-lg overflow-hidden flex-1 flex items-center justify-center">
+          <div className={`relative rounded-lg overflow-hidden flex-1 flex items-center justify-center ${
+            cameraLoading 
+              ? 'bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900' 
+              : 'bg-black'
+          }`}>
             {cameraActive ? (
               <video
                 ref={videoRef}
@@ -659,8 +671,18 @@ function QRLector() {
               </div>
             )}
             
+            {/* Overlay de loading durante inicialización */}
+            {cameraLoading && (
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center z-10 rounded-lg">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-400 mx-auto mb-6"></div>
+                  <p className="text-white text-lg font-semibold">Inicializando cámara...</p>
+                </div>
+              </div>
+            )}
+
             {/* Overlay de escaneo */}
-            {cameraActive && (
+            {cameraActive && !cameraLoading && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className={`w-48 h-48 border-4 border-dashed rounded-lg transition-colors ${
                   isScanning ? 'border-green-400 opacity-80' : 'border-yellow-400 opacity-50'
