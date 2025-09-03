@@ -21,6 +21,7 @@ function QRLector() {
   
   const videoRef = useRef(null);
   const codeReader = useRef(null);
+  const scanningPaused = useRef(false);
 
   useEffect(() => {
     initializeSystem();
@@ -229,7 +230,7 @@ function QRLector() {
         device,
         videoRef.current,
         (result, error) => {
-          if (result) {
+          if (result && !scanningPaused.current) {
             handleQRResult(result.getText());
           }
           // Ignorar errores comunes de no encontrar QR
@@ -254,9 +255,28 @@ function QRLector() {
       codeReader.current.reset();
     }
     
+    // Resetear bandera de pausa
+    scanningPaused.current = false;
+    
     // Actualizar estado
     setIsScanning(false);
     setStatusMessage('Escaneo detenido');
+  };
+
+  const pauseScanning = () => {
+    logger.log('⏸️ Pausing QR scanning temporarily...');
+    
+    // Activar bandera de pausa sin resetear el codeReader
+    scanningPaused.current = true;
+    setStatusMessage('Escaneo pausado temporalmente');
+  };
+
+  const resumeScanning = () => {
+    logger.log('▶️ Resuming QR scanning...');
+    
+    // Desactivar bandera de pausa
+    scanningPaused.current = false;
+    setStatusMessage('Escaneando automáticamente - Apunte códigos QR...');
   };
 
   // Función para procesar QR según el entorno (Electron vs Web)
@@ -306,6 +326,9 @@ function QRLector() {
       logger.debug('Full QR data:', qrData);
       setStatusMessage('Procesando QR...');
       
+      // Pausar temporalmente el escaneo para evitar múltiples lecturas
+      pauseScanning();
+      
       // Procesar QR según el entorno
       logger.debug('🔄 Processing QR data...');
       const result = await processQRData(qrData);
@@ -347,28 +370,30 @@ function QRLector() {
             checkAssistantsStatus();
           }
           
-          // Mostrar confirmación sin detener el escaneo
+          // Mostrar confirmación y esperar 4 segundos antes de reanudar
           setShowConfirmation(true);
           
-          // Ocultar confirmación después de 3 segundos
+          // Ocultar confirmación y reanudar escaneo después de 4 segundos
           setTimeout(() => {
-            logger.debug('🔄 Hiding confirmation after successful QR');
+            logger.debug('🔄 Hiding confirmation and resuming scan after 4s delay');
             setShowConfirmation(false);
-          }, 3000);
+            resumeScanning();
+          }, 4000);
         } else {
           // Manejar errores específicos
           setStatusMessage(`Error: ${result.message}`);
           logger.warn(`❌ ERROR DE REGISTRO: ${result.message}`);
           logger.debug('Error details:', result);
           
-          // Mostrar error sin detener el escaneo
+          // Mostrar error y esperar 4 segundos antes de reanudar
           setShowConfirmation(true);
           
-          // Ocultar confirmación después de 3 segundos
+          // Ocultar confirmación y reanudar escaneo después de 4 segundos
           setTimeout(() => {
-            logger.debug('🔄 Hiding confirmation after error display');
+            logger.debug('🔄 Hiding confirmation and resuming scan after error (4s delay)');
             setShowConfirmation(false);
-          }, 3000);
+            resumeScanning();
+          }, 4000);
         }
       } else {
         throw new Error('No response from database');
@@ -378,6 +403,12 @@ function QRLector() {
       logger.error('Error procesando QR:', error.message);
       logger.debug('QR processing error stack:', error.stack);
       setStatusMessage('Error procesando QR');
+      
+      // Reanudar escaneo después de 4 segundos incluso si hay error
+      setTimeout(() => {
+        logger.debug('🔄 Resuming scan after catch error (4s delay)');
+        resumeScanning();
+      }, 4000);
     }
   };
 
