@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { BrowserQRCodeReader } from '@zxing/library';
-import { FiCamera, FiPause, FiPlay, FiRefreshCw, FiWifi, FiX, FiChevronDown, FiChevronUp, FiRotateCcw } from 'react-icons/fi';
+import { FiCamera, FiRefreshCw, FiWifi, FiX, FiChevronDown, FiChevronUp, FiRotateCcw } from 'react-icons/fi';
 import logger from '../utils/clientLogger';
 
 function QRLector() {
@@ -37,7 +37,10 @@ function QRLector() {
     fetchBackendVersion();
     
     return () => {
-      stopScanning();
+      // Limpiar escaneo
+      if (codeReader.current) {
+        codeReader.current.reset();
+      }
       clearInterval(backendCheck);
       clearInterval(assistantsCheck);
       // Limpiar stream de video
@@ -244,12 +247,16 @@ function QRLector() {
   };
 
   const stopScanning = () => {
-    logger.log('⏸️ Stopping QR scanning...');
+    logger.log('🛑 Stopping QR scanning...');
+    
+    // Resetear el codeReader para detener la detección
     if (codeReader.current) {
       codeReader.current.reset();
     }
+    
+    // Actualizar estado
     setIsScanning(false);
-    setStatusMessage('Escaneo pausado - Click REANUDAR para continuar');
+    setStatusMessage('Escaneo detenido');
   };
 
   // Función para procesar QR según el entorno (Electron vs Web)
@@ -340,21 +347,13 @@ function QRLector() {
             checkAssistantsStatus();
           }
           
-          // Pausar escaneo temporalmente y mostrar pantalla de confirmación
-          stopScanning();
+          // Mostrar confirmación sin detener el escaneo
           setShowConfirmation(true);
           
-          // Ocultar confirmación después de 3 segundos y reanudar escaneo
+          // Ocultar confirmación después de 3 segundos
           setTimeout(() => {
-            logger.debug('🔄 Resuming scanning after confirmation');
+            logger.debug('🔄 Hiding confirmation after successful QR');
             setShowConfirmation(false);
-            setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
-            
-            // Forzar reanudación del escaneo automático
-            if (cameraActive) {
-              logger.debug('🔄 Force restarting scan after successful QR');
-              startScanning(null, true); // Forzar reinicio
-            }
           }, 3000);
         } else {
           // Manejar errores específicos
@@ -362,21 +361,13 @@ function QRLector() {
           logger.warn(`❌ ERROR DE REGISTRO: ${result.message}`);
           logger.debug('Error details:', result);
           
-          // Pausar escaneo temporalmente y mostrar pantalla de error
-          stopScanning();
+          // Mostrar error sin detener el escaneo
           setShowConfirmation(true);
           
-          // Ocultar confirmación después de 3 segundos y reanudar escaneo
+          // Ocultar confirmación después de 3 segundos
           setTimeout(() => {
-            logger.debug('🔄 Resuming scanning after error display');
+            logger.debug('🔄 Hiding confirmation after error display');
             setShowConfirmation(false);
-            setStatusMessage('Escaneando automáticamente - Listo para próximo QR');
-            
-            // Forzar reanudación del escaneo automático
-            if (cameraActive) {
-              logger.debug('🔄 Force restarting scan after error display');
-              startScanning(null, true); // Forzar reinicio
-            }
           }, 3000);
         }
       } else {
@@ -535,17 +526,13 @@ function QRLector() {
       // Inicializar nueva cámara
       await initializeVideoStream(newDeviceId);
       
-      // Si estaba escaneando antes, reanudar automáticamente
-      if (wasScanning) {
-        setTimeout(() => {
-          setIsScanning(false);
-          setTimeout(() => {
-            startScanning(newDeviceId, true);
-          }, 100);
-        }, 500);
-      } else {
-        setStatusMessage('Cámara cambiada - Listo para escanear');
-      }
+      // Marcar cámara como activa después de inicialización exitosa
+      setCameraActive(true);
+      
+      // Reanudar automáticamente después del cambio
+      setTimeout(() => {
+        startScanning(newDeviceId, true);
+      }, 500);
     } catch (error) {
       logger.error('Error changing camera:', error.message);
       setStatusMessage('Error cambiando cámara');
@@ -568,9 +555,9 @@ function QRLector() {
     
     await initializeSystem();
     
-    // Reiniciar escaneo automático si la cámara vuelve a estar disponible
+    // Iniciar escaneo automáticamente cuando la cámara esté lista
     setTimeout(() => {
-      if (cameraActive && !isScanning) {
+      if (cameraActive) {
         startScanning();
       }
     }, 1500);
@@ -652,19 +639,6 @@ function QRLector() {
                 Invertir
               </button>
               
-              {cameraActive && (
-                <button
-                  onClick={isScanning ? stopScanning : () => startScanning()}
-                  className={`px-3 py-1 rounded text-sm flex items-center gap-1 transition-colors ${
-                    isScanning 
-                      ? 'bg-orange-600 hover:bg-orange-700' 
-                      : 'bg-green-600 hover:bg-green-700'
-                  }`}
-                >
-                  {isScanning ? <FiPause size={14} /> : <FiPlay size={14} />}
-                  {isScanning ? 'Pausar' : 'Reanudar'}
-                </button>
-              )}
             </div>
           </div>
           
@@ -708,16 +682,10 @@ function QRLector() {
             {/* Overlay de escaneo */}
             {cameraActive && !cameraLoading && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className={`w-48 h-48 border-4 border-dashed rounded-lg transition-colors ${
-                  isScanning ? 'border-green-400 opacity-80' : 'border-yellow-400 opacity-50'
-                }`}>
+                <div className="w-48 h-48 border-4 border-dashed rounded-lg border-green-400 opacity-80">
                   <div className="absolute -top-8 left-1/2 transform -translate-x-1/2">
-                    <span className={`px-2 py-1 rounded text-sm font-semibold ${
-                      isScanning 
-                        ? 'bg-green-400 text-black animate-pulse' 
-                        : 'bg-yellow-400 text-black'
-                    }`}>
-                      {isScanning ? 'ESCANEANDO...' : 'PAUSADO'}
+                    <span className="px-2 py-1 rounded text-sm font-semibold bg-green-400 text-black animate-pulse">
+                      ESCANEANDO...
                     </span>
                   </div>
                 </div>
@@ -786,8 +754,8 @@ function QRLector() {
                 
                 <div className="flex items-center justify-between">
                   <span className="text-slate-300">Escaneando:</span>
-                  <span className={`font-semibold ${isScanning ? 'text-blue-400' : 'text-slate-500'}`}>
-                    {isScanning ? 'ACTIVO' : 'INACTIVO'}
+                  <span className="font-semibold text-blue-400">
+                    ACTIVO
                   </span>
                 </div>
                 
