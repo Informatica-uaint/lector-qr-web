@@ -29,6 +29,7 @@ services:
 
       # Security
       API_SECRET: ${API_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
     # Uncomment to expose ports locally
     # ports:
     #   - "${API_PORT:-3002}:${API_PORT:-3002}"
