@@ -34,7 +34,18 @@ const allowedOrigins = process.env.CORS_ORIGINS
       ];
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (mobile apps, Postman, same-origin)
+    if (!origin) return callback(null, true);
+
+    // Validar si el origin está en la lista de permitidos
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      logger.debug(`❌ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
@@ -54,6 +65,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use((req, res, next) => {
   logger.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   logger.debug(`Headers:`, req.headers);
+  if (req.headers.origin) {
+    logger.debug(`🌐 Request origin: ${req.headers.origin}`);
+  }
   if (req.body && Object.keys(req.body).length > 0) {
     logger.debug(`Body:`, JSON.stringify(req.body).slice(0, 500));
   }
