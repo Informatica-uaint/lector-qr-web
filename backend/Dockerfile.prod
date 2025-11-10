@@ -1,5 +1,9 @@
 FROM node:18-alpine AS base
 
+# Instalar Python3 y pip, luego instalar aioesphomeapi
+RUN apk add --no-cache python3 py3-pip && \
+    pip3 install --no-cache-dir aioesphomeapi
+
 WORKDIR /app
 
 COPY package*.json ./
