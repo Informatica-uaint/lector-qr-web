@@ -155,14 +155,15 @@ function QRLector() {
         logger.warn('navigator.permissions no disponible, saltando verificación:', permError.message);
       }
       
-      const constraints = {
-        video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          width: { ideal: 640, max: 1280 },
-          height: { ideal: 480, max: 720 },
-          frameRate: { ideal: 15, max: 30 }
-        }
-      };
+  const constraints = {
+    video: {
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+      width:  { min: 1280, ideal: 1920 },
+      height: { min: 720,  ideal: 1080 },
+      frameRate: { min: 24, ideal: 30 }
+    }
+  };
+
       
       logger.debug('📹 Requesting video stream with constraints:', constraints);
       
@@ -930,4 +931,5 @@ export default dynamic(() => Promise.resolve(QRLector), {
       <p>Cargando QR Lector...</p>
     </div>
   </div>
+
 });
