@@ -1,5 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
+const { spawn } = require('child_process');
+const path = require('path');
 const QRModel = require('../models/QRModel');
 const logger = require('../utils/logger');
 
@@ -72,6 +74,31 @@ router.post('/process', async (req, res) => {
     if (result.success) {
       logger.log(`✓ QR procesado exitosamente: ${result.message} - ${result.tipo}`);
       logger.debug('Process result:', result);
+
+      // Ejecutar open_door.py automáticamente si la puerta debe abrirse
+      if (result.door && result.door.shouldOpen) {
+        logger.log('🚪 Ejecutando open_door.py para abrir la puerta automáticamente...');
+
+        const scriptPath = path.join(__dirname, 'open_door.py');
+        const pythonProcess = spawn('python3', [scriptPath]);
+
+        pythonProcess.stdout.on('data', (data) => {
+          logger.log(`[open_door.py] ${data.toString().trim()}`);
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+          logger.warn(`[open_door.py ERROR] ${data.toString().trim()}`);
+        });
+
+        pythonProcess.on('close', (code) => {
+          if (code === 0) {
+            logger.log('✅ Script open_door.py ejecutado exitosamente');
+          } else {
+            logger.error(`❌ Script open_door.py terminó con código: ${code}`);
+          }
+        });
+      }
+
       res.status(200).json(result);
     } else {
       logger.warn(`✗ Error procesando QR: ${result.message}`);

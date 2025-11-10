@@ -126,9 +126,10 @@ async function runTests() {
   
   console.log('\n🏁 Pruebas completadas!');
   console.log('\n📋 NOTAS IMPORTANTES:');
-  console.log('- Para que funcione completamente, configura las variables ESPHOME_* en .env');
+  console.log('- La puerta se abre ejecutando el script open_door.py');
+  console.log('- Se requieren al menos 2 ayudantes presentes para que estudiantes puedan entrar');
   console.log('- Los usuarios de prueba deben existir en la base de datos');
-  console.log('- ESPHome debe estar accesible en la red local');
+  console.log('- Python3 y las dependencias del script deben estar instaladas');
   console.log('- Revisa los logs del backend para más detalles');
 }
 

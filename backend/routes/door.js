@@ -1,9 +1,52 @@
 const express = require('express');
-const axios = require('axios');
+const { spawn } = require('child_process');
+const path = require('path');
 const QRModel = require('../models/QRModel');
 const logger = require('../utils/logger');
 
 const router = express.Router();
+
+/**
+ * Función auxiliar para ejecutar el script open_door.py
+ * @returns {Promise} Promesa que se resuelve cuando el script termina exitosamente
+ */
+async function executeOpenDoorScript() {
+  const scriptPath = path.join(__dirname, 'open_door.py');
+  logger.log('🐍 Ejecutando script open_door.py:', scriptPath);
+
+  const pythonProcess = spawn('python3', [scriptPath]);
+  let scriptOutput = '';
+  let scriptError = '';
+
+  pythonProcess.stdout.on('data', (data) => {
+    const output = data.toString().trim();
+    scriptOutput += output + '\n';
+    logger.log(`[open_door.py] ${output}`);
+  });
+
+  pythonProcess.stderr.on('data', (data) => {
+    const error = data.toString().trim();
+    scriptError += error + '\n';
+    logger.warn(`[open_door.py ERROR] ${error}`);
+  });
+
+  return new Promise((resolve, reject) => {
+    pythonProcess.on('close', (code) => {
+      if (code === 0) {
+        logger.log('✅ Puerta abierta exitosamente via open_door.py');
+        resolve({ success: true, output: scriptOutput.trim() });
+      } else {
+        logger.error(`❌ Script open_door.py terminó con código: ${code}`);
+        reject(new Error(`Script failed with code ${code}: ${scriptError}`));
+      }
+    });
+
+    pythonProcess.on('error', (err) => {
+      logger.error('❌ Error ejecutando open_door.py:', err.message);
+      reject(err);
+    });
+  });
+}
 
 /**
  * GET /api/door/assistants-status
@@ -38,15 +81,15 @@ router.get('/assistants-status', async (req, res) => {
 
 /**
  * POST /api/door/open
- * Abre la puerta del laboratorio via ESPHome
+ * Abre la puerta del laboratorio ejecutando open_door.py
  * SOLO se ejecuta si está autorizado (ayudante entrando o estudiante con ayudantes presentes)
  */
 router.post('/open', async (req, res) => {
   try {
     const { userType, userName, authorized = false } = req.body;
-    
+
     logger.log('🚪 Solicitud de apertura de puerta:', { userType, userName, authorized });
-    
+
     if (!authorized) {
       logger.warn('❌ Intento de apertura de puerta no autorizada');
       return res.status(403).json({
@@ -55,46 +98,8 @@ router.post('/open', async (req, res) => {
       });
     }
 
-    // Verificar configuración ESPHome
-    const espHomeUrl = process.env.ESPHOME_URL;
-    const espHomeToken = process.env.ESPHOME_TOKEN;
-    const doorEntityId = process.env.ESPHOME_DOOR_ENTITY_ID || 'button.door_open';
-
-    if (!espHomeUrl) {
-      logger.error('❌ ESPHOME_URL no configurada');
-      return res.status(500).json({
-        success: false,
-        message: 'Configuración de puerta no disponible'
-      });
-    }
-
-    logger.debug('🔧 Configuración ESPHome:', { 
-      url: espHomeUrl, 
-      entityId: doorEntityId,
-      hasToken: !!espHomeToken 
-    });
-
-    // Construir URL y headers para ESPHome
-    const apiUrl = `${espHomeUrl}/button/${doorEntityId}/press`;
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-
-    if (espHomeToken) {
-      headers['Authorization'] = `Bearer ${espHomeToken}`;
-    }
-
-    logger.log('🌐 Enviando comando a ESPHome:', apiUrl);
-    logger.debug('Headers ESPHome:', headers);
-
-    // Enviar comando a ESPHome
-    const response = await axios.post(apiUrl, {}, {
-      headers: headers,
-      timeout: 5000
-    });
-
-    logger.log('✅ Puerta abierta exitosamente via ESPHome');
-    logger.debug('Respuesta ESPHome:', response.data);
+    // Ejecutar script open_door.py usando la función auxiliar
+    const result = await executeOpenDoorScript();
 
     res.status(200).json({
       success: true,
@@ -102,30 +107,17 @@ router.post('/open', async (req, res) => {
       userType: userType,
       userName: userName,
       timestamp: new Date().toISOString(),
-      espHomeResponse: response.data
+      scriptOutput: result.output
     });
 
   } catch (error) {
     logger.error('Error abriendo puerta:', error.message);
     logger.debug('Error stack:', error.stack);
-    
-    if (error.code === 'ECONNREFUSED') {
-      return res.status(500).json({
-        success: false,
-        message: 'Sistema de puerta no disponible'
-      });
-    }
-    
-    if (error.response?.status === 401) {
-      return res.status(500).json({
-        success: false,
-        message: 'Error de autenticación con sistema de puerta'
-      });
-    }
 
     res.status(500).json({
       success: false,
-      message: 'Error interno abriendo puerta'
+      message: 'Error interno abriendo puerta',
+      error: error.message
     });
   }
 });
@@ -133,7 +125,7 @@ router.post('/open', async (req, res) => {
 /**
  * POST /api/door/check-and-open
  * Verifica condiciones y abre la puerta si está autorizado
- * Lógica: Ayudante -> Siempre abre, Estudiante -> Solo si hay ayudantes
+ * Lógica: Ayudante -> Siempre abre, Estudiante -> Solo si hay al menos 2 ayudantes presentes
  */
 router.post('/check-and-open', async (req, res) => {
   try {
@@ -160,16 +152,16 @@ router.post('/check-and-open', async (req, res) => {
       logger.log('✅ Ayudante autorizado para abrir puerta:', userName);
       
     } else if (userType === 'ESTUDIANTE') {
-      // Estudiantes solo pueden abrir si hay ayudantes presentes
+      // Estudiantes solo pueden abrir si hay al menos 2 ayudantes presentes
       const assistantsPresent = await QRModel.checkAssistantsPresent();
       
       if (assistantsPresent) {
         authorized = true;
-        reason = 'Ayudantes presentes en laboratorio';
-        logger.log('✅ Estudiante autorizado - hay ayudantes presentes:', userName);
+        reason = 'Al menos 2 ayudantes presentes en laboratorio';
+        logger.log('✅ Estudiante autorizado - hay al menos 2 ayudantes presentes:', userName);
       } else {
         authorized = false;
-        reason = 'Laboratorio cerrado - no hay ayudantes presentes';
+        reason = 'Laboratorio cerrado - se requieren al menos 2 ayudantes presentes';
         logger.log('❌ Estudiante no autorizado - laboratorio cerrado:', userName);
       }
       
@@ -192,16 +184,15 @@ router.post('/check-and-open', async (req, res) => {
     if (authorized) {
       // Si está autorizado, intentar abrir la puerta
       try {
-        const doorResponse = await axios.post(`${req.protocol}://${req.get('host')}/api/door/open`, {
-          userType: userType,
-          userName: userName,
-          authorized: true
-        });
-
+        const doorResult = await executeOpenDoorScript();
         response.doorOpened = true;
-        response.doorResponse = doorResponse.data;
+        response.doorResponse = {
+          success: true,
+          message: 'Puerta abierta exitosamente',
+          scriptOutput: doorResult.output
+        };
         logger.log('🚪 Puerta abierta exitosamente para:', userName);
-        
+
       } catch (doorError) {
         logger.error('Error abriendo puerta después de autorización:', doorError.message);
         response.doorOpened = false;

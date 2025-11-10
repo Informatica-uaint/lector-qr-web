@@ -311,12 +311,13 @@ class QRModel {
       const cantidadAyudantes = ayudantesDentro.length;
       
       logger.log(`👥 Ayudantes actualmente en laboratorio: ${cantidadAyudantes}`);
-      
+
       if (cantidadAyudantes > 0) {
         logger.debug('Ayudantes presentes:', ayudantesDentro.map(a => `${a.nombre} ${a.apellido}`));
       }
 
-      return cantidadAyudantes > 0;
+      // Se requieren al menos 2 ayudantes para autorizar entrada de estudiantes
+      return cantidadAyudantes >= 2;
     } catch (error) {
       logger.error('Error verificando ayudantes presentes:', error.message);
       logger.debug('Error stack:', error.stack);
