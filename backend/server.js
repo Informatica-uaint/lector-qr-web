@@ -23,11 +23,13 @@ if (process.env.NODE_ENV === 'production') {
 // Middleware de seguridad
 app.use(helmet());
 // Configurar CORS dinámicamente basado en el entorno
+const allowDomainSuffix = process.env.CORS_DOMAIN_SUFFIX || '.informaticauaint.com';
 const allowedOrigins = process.env.CORS_ORIGINS 
   ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
   : process.env.NODE_ENV === 'production' 
     ? [
         'https://lector.lab.informaticauaint.com',
+        'https://www.lector.lab.informaticauaint.com',
         'http://lector.lab.informaticauaint.com'
       ]
     : [
@@ -35,18 +37,20 @@ const allowedOrigins = process.env.CORS_ORIGINS
         'http://127.0.0.1:3020'
       ];
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (allowDomainSuffix && origin.endsWith(allowDomainSuffix)) return true;
+  return false;
+};
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Permitir requests sin origin (mobile apps, Postman, same-origin)
-    if (!origin) return callback(null, true);
-
-    // Validar si el origin está en la lista de permitidos
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      logger.debug(`❌ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
     }
+    logger.debug(`❌ CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
