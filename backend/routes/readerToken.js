@@ -25,8 +25,7 @@ router.get('/token', (req, res) => {
   const payload = {
     station_id: stationId,
     nonce,
-    iat: nowSeconds,
-    exp: nowSeconds + expiresIn
+    iat: nowSeconds
   };
 
   const token = jwt.sign(payload, signingKey, {
