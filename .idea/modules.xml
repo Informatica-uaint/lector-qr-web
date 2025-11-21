@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../HorariosLabInf/.idea/HorariosLabInf.iml" filepath="$PROJECT_DIR$/../HorariosLabInf/.idea/HorariosLabInf.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/lector-qr-web.iml" filepath="$PROJECT_DIR$/.idea/lector-qr-web.iml" />
     </modules>
   </component>

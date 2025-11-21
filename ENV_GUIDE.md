@@ -96,6 +96,9 @@ docker-compose -f docker-compose.prod.yml --env-file .env.docker.prod up
 - `CORS_ORIGINS` - Orígenes permitidos para CORS (separados por coma)
 - `MYSQL_HOST` - Host de la base de datos
 - `API_SECRET` - Secreto para autenticación
+- `READER_QR_SECRET` - Secreto HS256 para firmar el QR dinámico (compartido con Flask)
+- `STATION_ID` - Identificador lógico de la estación que muestra el QR
+- `READER_QR_TTL` - TTL (segundos) del token QR generado (opcional)
 
 ### Frontend:
 - `NODE_ENV` - Controla el logging del cliente

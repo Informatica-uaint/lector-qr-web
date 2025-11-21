@@ -6,6 +6,8 @@ Sistema moderno de lectura de códigos QR para el control de acceso al laborator
 
 Sistema completo con arquitectura separada frontend/backend que permite el registro automático de entrada y salida de estudiantes y personal mediante códigos QR.
 
+> Nueva lógica: el lector ahora **genera un QR dinámico** y la app móvil HorariosLabInf lo escanea para validar credenciales contra el backend Flask.
+
 ### 🏗️ Arquitectura
 
 ```
