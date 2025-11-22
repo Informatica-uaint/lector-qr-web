@@ -275,7 +275,7 @@ class QRModel {
 
   /**
    * Verifica si actualmente hay ayudantes en el laboratorio
-   * @returns {boolean} True si hay ayudantes presentes
+   * @returns {number} Cantidad de ayudantes presentes
    */
   static async checkAssistantsPresent() {
     try {
@@ -316,8 +316,7 @@ class QRModel {
         logger.debug('Ayudantes presentes:', ayudantesDentro.map(a => `${a.nombre} ${a.apellido}`));
       }
 
-      // Se requieren al menos 2 ayudantes para autorizar entrada de estudiantes
-      return cantidadAyudantes >= 2;
+      return cantidadAyudantes;
     } catch (error) {
       logger.error('Error verificando ayudantes presentes:', error.message);
       logger.debug('Error stack:', error.stack);
@@ -404,10 +403,10 @@ class QRModel {
         
       } else if (tipoUsuario === 'ESTUDIANTE') {
         // Estudiantes solo pueden entrar si hay ayudantes presentes
-        const assistantsPresent = await this.checkAssistantsPresent();
-        doorResult.assistantsPresent = assistantsPresent;
+        const assistantsCount = await this.checkAssistantsPresent();
+        doorResult.assistantsPresent = assistantsCount >= 2;
         
-        if (assistantsPresent) {
+        if (assistantsCount >= 2) {
           doorResult.shouldOpen = true;
           doorResult.reason = 'Estudiante autorizado - ayudantes presentes';
           logger.log('✅ Estudiante autorizado - ayudantes presentes');
