@@ -128,7 +128,9 @@ export default function ReaderTokenDisplay() {
               className="h-12 w-12 rounded-lg border border-white/20 bg-white"
             />
             <div>
-              <p className="text-sm text-white/70 uppercase tracking-wide">QR Lector Laboratorio</p>
+              <p className="text-sm text-white/70 uppercase tracking-wide">
+                {stationId ? `QR Acceso: ${stationId}` : 'QR Lector Laboratorio'}
+              </p>
               <h1 className="text-2xl font-bold text-white">Universidad Adolfo Ibáñez - Informática UAI</h1>
             </div>
           </div>
@@ -146,17 +148,12 @@ export default function ReaderTokenDisplay() {
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 h-[calc(100vh-180px)]">
           {/* QR dinámico */}
           <section className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-xl lg:sticky lg:top-6 h-full flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-            <div className="flex items-center gap-2 text-lg font-semibold text-white">
-              <FiClock className="text-indigo-300" />
-              QR Dinámico de Acceso
-            </div>
+            <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-lg font-semibold text-white">
+                <FiClock className="text-indigo-300" />
+                QR Dinámico de Acceso
+              </div>
             <div className="flex items-center gap-3 flex-wrap">
-              {stationId && (
-                <span className="text-sm text-white/80 bg-white/10 px-3 py-1.5 rounded-full border border-white/10">
-                  Estación lector web: {stationId}
-                </span>
-              )}
               <button
                 onClick={fetchToken}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold transition"
@@ -167,7 +164,7 @@ export default function ReaderTokenDisplay() {
             </div>
           </div>
 
-          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-4 sm:p-6 flex flex-col gap-4 h-full max-h-full">
+          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-4 sm:p-6 pb-8 flex flex-col gap-4 h-full max-h-full">
             {error && (
               <div className="flex items-center gap-2 text-amber-200 bg-amber-900/40 border border-amber-700 rounded-lg px-4 py-2">
                 <FiAlertTriangle />
@@ -179,7 +176,7 @@ export default function ReaderTokenDisplay() {
                 <p className="text-slate-300 w-full h-full flex items-center justify-center text-lg">Generando...</p>
               )}
               {token && (
-                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[calc(100vh-260px)]">
+                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[65vh] sm:max-h-[68vh]">
                   <QRCode
                     value={qrValue}
                     size={720}
@@ -194,19 +191,6 @@ export default function ReaderTokenDisplay() {
 
         {/* Panel derecho */}
           <div className="flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-1 pb-1">
-            {/* QR Horarios */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
-              <h3 className="text-md font-semibold mb-3">Genera tu QR</h3>
-              <div className="bg-white p-2 rounded-lg inline-block">
-                <img
-                  src="/assets/qr-acceso.png"
-                  alt="QR HorariosLabInf"
-                  className="w-48 h-48 object-contain"
-                />
-              </div>
-              <p className="text-xs text-white/70 mt-2">acceso.informaticauaint.com</p>
-            </div>
-
             {/* QR Discord */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
               <h3 className="text-md font-semibold mb-3">Únete a Discord</h3>
