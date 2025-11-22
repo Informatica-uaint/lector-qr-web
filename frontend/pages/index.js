@@ -89,7 +89,7 @@ export default function ReaderTokenDisplay() {
   useEffect(() => {
     fetchToken();
     fetchAssistantsStatus();
-    assistantsTimer.current = setInterval(fetchAssistantsStatus, 20000);
+    assistantsTimer.current = setInterval(fetchAssistantsStatus, 5000);
     return () => {
       setToken('');
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
@@ -141,14 +141,9 @@ export default function ReaderTokenDisplay() {
               <h1 className="text-2xl font-bold text-white">Universidad Adolfo Ibáñez - Informática UAI</h1>
             </div>
           </div>
-          <div className={`px-5 py-3 rounded-xl font-semibold text-base flex items-center gap-3 shadow border ${statusBadgeClass}`}>
-            <StatusIcon className="text-xl" />
-            <div className="leading-tight">
-              <p className="capitalize">{statusLabel}</p>
-              <p className="text-xs text-white/70 font-normal">
-                {assistantsConnected ? `${safeAssistantsCount} ayudante${safeAssistantsCount === 1 ? '' : 's'} dentro` : 'Sin datos de ayudantes'}
-              </p>
-            </div>
+          <div className={`px-8 py-5 rounded-2xl font-bold text-2xl flex items-center gap-4 shadow-lg border ${statusBadgeClass}`}>
+            <StatusIcon className="text-4xl" />
+            <span className="capitalize">{statusLabel}</span>
           </div>
         </header>
 
