@@ -1,29 +1,5 @@
 FROM node:18-alpine AS base
 
-# Instalar Python y dependencias de compilación para aioesphomeapi
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    python3-dev \
-    gcc \
-    g++ \
-    musl-dev \
-    libffi-dev \
-    openssl-dev \
-    cargo \
-    rust
-
-# Crear virtual environment e instalar aioesphomeapi
-RUN python3 -m venv /opt/venv && \
-    /opt/venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /opt/venv/bin/pip install --no-cache-dir aioesphomeapi
-
-# Hacer que el venv sea el Python por defecto
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Limpiar dependencias de compilación para reducir tamaño de imagen
-RUN apk del gcc g++ musl-dev python3-dev cargo rust
-
 WORKDIR /app
 
 COPY package*.json ./
