@@ -1,5 +1,6 @@
 const express = require('express');
 const logger = require('../utils/logger');
+const QRModel = require('../models/QRModel');
 
 const router = express.Router();
 
