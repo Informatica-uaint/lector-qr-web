@@ -12,15 +12,15 @@ router.get('/assistants-status', async (req, res) => {
   try {
     logger.debug('🔍 Verificando estado de ayudantes en laboratorio...');
     
-    const assistantsPresent = await QRModel.checkAssistantsPresent();
-    const assistantsDetails = assistantsPresent ? await QRModel.getAssistantsPresent() : [];
+    const assistantsCount = await QRModel.checkAssistantsPresent();
+    const assistantsDetails = assistantsCount > 0 ? await QRModel.getAssistantsPresent() : [];
     
-    logger.log(`👥 Estado ayudantes: ${assistantsPresent ? 'PRESENTES' : 'AUSENTES'} (${assistantsDetails.length} ayudantes)`);
+    logger.log(`👥 Estado ayudantes: ${assistantsCount > 0 ? 'PRESENTES' : 'AUSENTES'} (${assistantsCount} ayudantes)`);
     
     res.status(200).json({
       success: true,
-      assistantsPresent: assistantsPresent,
-      count: assistantsDetails.length,
+      assistantsPresent: assistantsCount > 0,
+      count: assistantsCount,
       assistants: assistantsDetails,
       timestamp: new Date().toISOString()
     });
