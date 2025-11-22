@@ -16,6 +16,9 @@ const FALLBACK_API =
     ? 'https://api.lector.lab.informaticauaint.com/api'
     : 'http://localhost:3001/api';
 
+const READER_LANDING_URL =
+  process.env.NEXT_PUBLIC_READER_LANDING_URL || 'https://acceso.informaticauaint.com';
+
 const TOKEN_REFRESH_BUFFER_MS = 3000;
 
 function getBackendURL() {
@@ -111,6 +114,7 @@ export default function ReaderTokenDisplay() {
       ? 'bg-amber-500/20 text-amber-100 border border-amber-500/30'
       : 'bg-red-500/20 text-red-100 border border-red-500/30';
   const statusLabel = isOpenGreen ? 'Abierto' : isOpenYellow ? 'abierto' : 'Cerrado';
+  const qrValue = token ? `${READER_LANDING_URL}?readerToken=${encodeURIComponent(token)}` : '';
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white px-6 py-8 overflow-hidden">
@@ -141,7 +145,7 @@ export default function ReaderTokenDisplay() {
 
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 h-[calc(100vh-180px)]">
           {/* QR dinámico */}
-          <section className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-xl lg:sticky lg:top-6 h-full">
+          <section className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-xl lg:sticky lg:top-6 h-full flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-lg font-semibold text-white">
               <FiClock className="text-indigo-300" />
@@ -163,22 +167,22 @@ export default function ReaderTokenDisplay() {
             </div>
           </div>
 
-          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-6 flex flex-col gap-4 min-h-[560px] h-full">
+          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-4 sm:p-6 flex flex-col gap-4 h-full max-h-full">
             {error && (
               <div className="flex items-center gap-2 text-amber-200 bg-amber-900/40 border border-amber-700 rounded-lg px-4 py-2">
                 <FiAlertTriangle />
                 <span>{error}</span>
               </div>
             )}
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center overflow-hidden">
               {loading && !token && (
                 <p className="text-slate-300 w-full h-full flex items-center justify-center text-lg">Generando...</p>
               )}
               {token && (
-                <div className="w-full h-full max-w-[640px] max-h-[640px] aspect-square">
+                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[calc(100vh-260px)]">
                   <QRCode
-                    value={token}
-                    size={640}
+                    value={qrValue}
+                    size={720}
                     fgColor="#0f172a"
                     style={{ width: '100%', height: '100%' }}
                   />
