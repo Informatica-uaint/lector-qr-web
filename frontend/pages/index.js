@@ -37,6 +37,7 @@ export default function ReaderTokenDisplay() {
   const [assistantsCount, setAssistantsCount] = useState(null);
   const [assistantsConnected, setAssistantsConnected] = useState(false);
   const [systemPanelOpen, setSystemPanelOpen] = useState(true);
+  const [nowTs, setNowTs] = useState(Date.now());
   const refreshTimer = useRef(null);
   const assistantsTimer = useRef(null);
 
@@ -97,11 +98,17 @@ export default function ReaderTokenDisplay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!nextRefresh) return undefined;
+    const interval = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [nextRefresh]);
+
   const remainingSeconds = useMemo(() => {
     if (!nextRefresh) return null;
-    const diff = Math.max(nextRefresh - Date.now(), 0);
+    const diff = Math.max(nextRefresh - nowTs, 0);
     return Math.ceil(diff / 1000);
-  }, [nextRefresh, token]);
+  }, [nextRefresh, nowTs]);
 
   const connectionOk = !error && !!token;
   const safeAssistantsCount = typeof assistantsCount === 'number' ? assistantsCount : 0;
@@ -176,11 +183,12 @@ export default function ReaderTokenDisplay() {
                 <p className="text-slate-300 w-full h-full flex items-center justify-center text-lg">Generando...</p>
               )}
               {token && (
-                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[65vh] sm:max-h-[68vh] pb-4">
+                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[65vh] sm:max-h-[68vh] pb-4 bg-white rounded-xl p-4">
                   <QRCode
                     value={qrValue}
                     size={720}
                     fgColor="#0f172a"
+                    bgColor="#ffffff"
                     style={{ width: '100%', height: '100%' }}
                   />
                 </div>
@@ -191,19 +199,6 @@ export default function ReaderTokenDisplay() {
 
         {/* Panel derecho */}
           <div className="flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-1 pb-1">
-            {/* QR Discord */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
-              <h3 className="text-md font-semibold mb-3">Únete a Discord</h3>
-              <div className="bg-white p-2 rounded-lg inline-block">
-                <img
-                  src="/assets/qr-discord.png"
-                  alt="QR Discord Informática UAI"
-                  className="w-48 h-48 object-contain"
-                />
-              </div>
-              <p className="text-xs text-white/70 mt-2">Comunidad Informática UAI</p>
-            </div>
-
             {/* Estado */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg">
               <button
@@ -244,6 +239,19 @@ export default function ReaderTokenDisplay() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* QR Discord */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
+              <h3 className="text-md font-semibold mb-3">Únete a Discord</h3>
+              <div className="bg-white p-2 rounded-lg inline-block">
+                <img
+                  src="/assets/qr-discord.png"
+                  alt="QR Discord Informática UAI"
+                  className="w-48 h-48 object-contain"
+                />
+              </div>
+              <p className="text-xs text-white/70 mt-2">Comunidad Informática UAI</p>
             </div>
           </div>
         </div>
