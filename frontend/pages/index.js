@@ -36,7 +36,7 @@ export default function ReaderTokenDisplay() {
   const [loading, setLoading] = useState(true);
   const [assistantsCount, setAssistantsCount] = useState(null);
   const [assistantsConnected, setAssistantsConnected] = useState(false);
-  const [systemPanelOpen, setSystemPanelOpen] = useState(false);
+  const [systemPanelOpen, setSystemPanelOpen] = useState(true);
   const refreshTimer = useRef(null);
   const assistantsTimer = useRef(null);
 
@@ -176,7 +176,7 @@ export default function ReaderTokenDisplay() {
                 <p className="text-slate-300 w-full h-full flex items-center justify-center text-lg">Generando...</p>
               )}
               {token && (
-                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[65vh] sm:max-h-[68vh]">
+                <div className="w-full h-full aspect-square max-w-[calc(100vw-420px)] max-h-[65vh] sm:max-h-[68vh] pb-4">
                   <QRCode
                     value={qrValue}
                     size={720}
