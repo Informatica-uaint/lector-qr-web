@@ -30,9 +30,8 @@ services:
       # Security
       API_SECRET: ${API_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS}
-    # Uncomment to expose ports locally
-    # ports:
-    #   - "${API_PORT:-3002}:${API_PORT:-3002}"
+    ports:
+      - "127.0.0.1:${API_PORT:-3002}:${API_PORT:-3002}"
     networks:
       - qr-network
       - newt-proxy
@@ -61,9 +60,8 @@ services:
       # Next.js Internal Configuration
       PORT: ${FRONTEND_PORT:-3020}
       HOSTNAME: "0.0.0.0"
-    # Uncomment to expose ports locally
-    # ports:
-    #   - "${FRONTEND_PORT:-3020}:${FRONTEND_PORT:-3020}"
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3020}:${FRONTEND_PORT:-3020}"
     networks:
       - qr-network
       - newt-proxy
