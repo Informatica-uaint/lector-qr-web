@@ -33,7 +33,7 @@ export default function ReaderTokenDisplay() {
   const [loading, setLoading] = useState(true);
   const [assistantsCount, setAssistantsCount] = useState(null);
   const [assistantsConnected, setAssistantsConnected] = useState(false);
-  const [systemPanelOpen, setSystemPanelOpen] = useState(true);
+  const [systemPanelOpen, setSystemPanelOpen] = useState(false);
   const refreshTimer = useRef(null);
   const assistantsTimer = useRef(null);
 
@@ -113,8 +113,8 @@ export default function ReaderTokenDisplay() {
   const statusLabel = isOpenGreen ? 'Abierto' : isOpenYellow ? 'abierto' : 'Cerrado';
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white px-6 py-8">
-      <div className="max-w-6xl mx-auto flex flex-col gap-6">
+    <main className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white px-6 py-8 overflow-hidden">
+      <div className="max-w-6xl mx-auto flex flex-col gap-6 h-full">
         {/* Header */}
         <header className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 px-6 py-4 shadow-lg">
           <div className="flex items-center gap-3">
@@ -128,20 +128,20 @@ export default function ReaderTokenDisplay() {
               <h1 className="text-2xl font-bold text-white">Universidad Adolfo Ibáñez - Informática UAI</h1>
             </div>
           </div>
-          <div className={`px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-3 ${statusBadgeClass}`}>
-            <StatusIcon />
+          <div className={`px-5 py-3 rounded-xl font-semibold text-base flex items-center gap-3 shadow border ${statusBadgeClass}`}>
+            <StatusIcon className="text-xl" />
             <div className="leading-tight">
               <p className="capitalize">{statusLabel}</p>
-              <p className="text-[11px] text-white/70 font-normal">
+              <p className="text-xs text-white/70 font-normal">
                 {assistantsConnected ? `${safeAssistantsCount} ayudante${safeAssistantsCount === 1 ? '' : 's'} dentro` : 'Sin datos de ayudantes'}
               </p>
             </div>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 h-[calc(100vh-180px)]">
           {/* QR dinámico */}
-          <section className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-xl">
+          <section className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-xl lg:sticky lg:top-6 h-full">
           <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-lg font-semibold text-white">
               <FiClock className="text-indigo-300" />
@@ -163,7 +163,7 @@ export default function ReaderTokenDisplay() {
             </div>
           </div>
 
-          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-6 flex flex-col gap-4 min-h-[560px]">
+          <div className="bg-slate-900/80 border border-indigo-500/30 rounded-2xl p-6 flex flex-col gap-4 min-h-[560px] h-full">
             {error && (
               <div className="flex items-center gap-2 text-amber-200 bg-amber-900/40 border border-amber-700 rounded-lg px-4 py-2">
                 <FiAlertTriangle />
@@ -189,7 +189,33 @@ export default function ReaderTokenDisplay() {
         </section>
 
         {/* Panel derecho */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 overflow-y-auto max-h-[calc(100vh-180px)] pr-1 pb-1">
+            {/* QR Horarios */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
+              <h3 className="text-md font-semibold mb-3">Genera tu QR</h3>
+              <div className="bg-white p-2 rounded-lg inline-block">
+                <img
+                  src="/assets/qr-acceso.png"
+                  alt="QR HorariosLabInf"
+                  className="w-48 h-48 object-contain"
+                />
+              </div>
+              <p className="text-xs text-white/70 mt-2">acceso.informaticauaint.com</p>
+            </div>
+
+            {/* QR Discord */}
+            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
+              <h3 className="text-md font-semibold mb-3">Únete a Discord</h3>
+              <div className="bg-white p-2 rounded-lg inline-block">
+                <img
+                  src="/assets/qr-discord.png"
+                  alt="QR Discord Informática UAI"
+                  className="w-48 h-48 object-contain"
+                />
+              </div>
+              <p className="text-xs text-white/70 mt-2">Comunidad Informática UAI</p>
+            </div>
+
             {/* Estado */}
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg">
               <button
@@ -230,32 +256,6 @@ export default function ReaderTokenDisplay() {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* QR Horarios */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
-              <h3 className="text-md font-semibold mb-3">Genera tu QR</h3>
-              <div className="bg-white p-2 rounded-lg inline-block">
-                <img
-                  src="/assets/qr-acceso.png"
-                  alt="QR HorariosLabInf"
-                  className="w-48 h-48 object-contain"
-                />
-              </div>
-              <p className="text-xs text-white/70 mt-2">acceso.informaticauaint.com</p>
-            </div>
-
-            {/* QR Discord */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 shadow-lg text-center">
-              <h3 className="text-md font-semibold mb-3">Únete a Discord</h3>
-              <div className="bg-white p-2 rounded-lg inline-block">
-                <img
-                  src="/assets/qr-discord.png"
-                  alt="QR Discord Informática UAI"
-                  className="w-48 h-48 object-contain"
-                />
-              </div>
-              <p className="text-xs text-white/70 mt-2">Comunidad Informática UAI</p>
             </div>
           </div>
         </div>
