@@ -26,7 +26,7 @@ services:
       API_SECRET: ${API_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS}
     ports:
-      - "{API_PORT:-3002}:${API_PORT:-3002}"
+      - "${API_PORT:-3002}:${API_PORT:-3002}"
     networks:
       - qr-network
       - newt-proxy
