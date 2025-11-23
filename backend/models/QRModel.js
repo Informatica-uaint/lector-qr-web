@@ -2,6 +2,21 @@ const dbManager = require('../config/database');
 const logger = require('../utils/logger');
 
 /**
+ * Obtiene la fecha actual en la zona horaria especificada (formato YYYY-MM-DD)
+ * @param {string} timezone - Zona horaria (default: America/Santiago)
+ * @returns {string} Fecha en formato YYYY-MM-DD
+ */
+const getCurrentDateInTimezone = (timezone = 'America/Santiago') => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  return formatter.format(new Date()); // Formato: YYYY-MM-DD
+};
+
+/**
  * QRModel - Modelo para consultas relacionadas con el estado del laboratorio
  *
  * Este modelo se encarga de verificar el estado de ayudantes presentes en el laboratorio,
@@ -14,8 +29,9 @@ class QRModel {
    */
   static async checkAssistantsPresent() {
     try {
-      const fechaHoy = new Date().toISOString().split('T')[0];
-      logger.debug(`🔍 Verificando ayudantes presentes en fecha: ${fechaHoy}`);
+      const timezone = process.env.TZ || 'America/Santiago';
+      const fechaHoy = getCurrentDateInTimezone(timezone);
+      logger.debug(`🔍 Verificando ayudantes presentes en fecha: ${fechaHoy} (timezone: ${timezone})`);
 
       // Query para obtener todos los registros de ayudantes del día, ordenados por hora
       const registros = await dbManager.query(`
@@ -65,8 +81,9 @@ class QRModel {
    */
   static async getAssistantsPresent() {
     try {
-      const fechaHoy = new Date().toISOString().split('T')[0];
-      logger.debug(`📋 Obteniendo detalles de ayudantes presentes: ${fechaHoy}`);
+      const timezone = process.env.TZ || 'America/Santiago';
+      const fechaHoy = getCurrentDateInTimezone(timezone);
+      logger.debug(`📋 Obteniendo detalles de ayudantes presentes: ${fechaHoy} (timezone: ${timezone})`);
 
       const registros = await dbManager.query(`
         SELECT email, tipo, hora, nombre, apellido
