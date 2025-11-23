@@ -15,7 +15,7 @@ backend/
 │   └── QRModel.js           # Consultas de estado de asistentes
 ├── 📁 routes/
 │   ├── readerToken.js       # Generación de tokens JWT
-│   └── door.js              # Estado de asistentes
+│   └── assistants.js        # Estado de asistentes
 ├── 📁 utils/
 │   └── logger.js            # Logger con filtro por entorno
 ├── 📄 package.json          # Dependencias y scripts
@@ -34,7 +34,7 @@ const cors = require('cors');               // CORS dinámico
 const rateLimit = require('express-rate-limit'); // Rate limiting
 
 // Rutas activas
-app.use('/api/door', doorRoutes);          // Estado de asistentes
+app.use('/api/assistants', assistantsRoutes);  // Estado de asistentes
 app.use('/api/reader', readerTokenRoutes); // Generación de tokens
 ```
 
@@ -136,10 +136,10 @@ router.get('/token', async (req, res) => {
 **Endpoints:**
 - `GET /api/reader/token` - Genera JWT firmado con expiración de 60s
 
-#### Door Routes (routes/door.js)
+#### Assistants Routes (routes/assistants.js)
 
 ```javascript
-router.get('/assistants-status', async (req, res) => {
+router.get('/status', async (req, res) => {
   const count = await QRModel.checkAssistantsPresent();
   const assistants = await QRModel.getAssistantsPresent();
 
@@ -154,9 +154,7 @@ router.get('/assistants-status', async (req, res) => {
 ```
 
 **Endpoints:**
-- `GET /api/door/assistants-status` - Obtiene cantidad de ayudantes presentes
-- `POST /api/door/open` - Retorna 410 (deprecado, manejado por Flask)
-- `POST /api/door/check-and-open` - Retorna 410 (deprecado, manejado por Flask)
+- `GET /api/assistants/status` - Obtiene cantidad de ayudantes presentes
 
 ### 5. Logger (utils/logger.js)
 
@@ -233,7 +231,7 @@ Frontend display as QR
 ```
 Frontend Request
     ↓
-GET /api/door/assistants-status
+GET /api/assistants/status
     ↓
 QRModel.checkAssistantsPresent()
     ↓

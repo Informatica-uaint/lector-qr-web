@@ -6,7 +6,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const logger = require('./utils/logger');
-const doorRoutes = require('./routes/door');
+const assistantsRoutes = require('./routes/assistants');
 const readerTokenRoutes = require('./routes/readerToken');
 const packageJson = require('./package.json');
 
@@ -80,7 +80,7 @@ app.use((req, res, next) => {
 });
 
 // Rutas
-app.use('/api/door', doorRoutes);
+app.use('/api/assistants', assistantsRoutes);
 app.use('/api/reader', readerTokenRoutes);
 
 // Ruta de health check

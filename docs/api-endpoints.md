@@ -69,9 +69,9 @@ Content-Type: application/json
 
 ---
 
-## 🚪 Lab Status Endpoints
+## 👥 Assistants Endpoints
 
-### GET `/api/door/assistants-status`
+### GET `/api/assistants/status`
 **Descripción:** Obtiene el número de ayudantes actualmente presentes en el laboratorio. Esta información se usa para determinar si el laboratorio está abierto o cerrado.
 
 **Success Response (200):**
@@ -96,28 +96,6 @@ Content-Type: application/json
 - El laboratorio se considera "abierto" si hay al menos 2 ayudantes presentes
 - La cuenta se basa en registros de Entrada/Salida en la tabla `registros`
 - Solo consulta la base de datos, no escribe datos
-
-### POST `/api/door/open`
-**Descripción:** Endpoint deprecado. Retorna código 410 (Gone).
-
-**Response (410):**
-```json
-{
-  "success": false,
-  "message": "Door control is now handled by Flask backend"
-}
-```
-
-### POST `/api/door/check-and-open`
-**Descripción:** Endpoint deprecado. Retorna código 410 (Gone).
-
-**Response (410):**
-```json
-{
-  "success": false,
-  "message": "Door control is now handled by Flask backend"
-}
-```
 
 ---
 

@@ -139,7 +139,7 @@ API_BASE_URL=http://localhost:3001/api
 ## Key API Endpoints
 
 - `GET /api/reader/token` - Generate JWT token for QR display (refreshes every 60s)
-- `GET /api/door/assistants-status` - Get count of assistants present (lab status)
+- `GET /api/assistants/status` - Get count of assistants present (lab status)
 - `GET /health` - API health check
 
 ## Database Schema

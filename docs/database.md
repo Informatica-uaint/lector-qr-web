@@ -335,6 +335,6 @@ El backend incluye verificación de conexión a base de datos:
 
 - **Backend Database Manager**: `backend/config/database.js`
 - **QR Model**: `backend/models/QRModel.js`
-- **Door Routes**: `backend/routes/door.js` (usa QRModel para obtener estado)
+- **assistants**: `backend/routes/assistants.js` (usa QRModel para obtener estado de ayudantes)
 - **Init Script**: `database/init.sql` (solo desarrollo)
 - **API Endpoint**: `GET /api/door/assistants-status`

@@ -72,7 +72,7 @@ export default function ReaderTokenDisplay() {
 
   const fetchAssistantsStatus = async () => {
     try {
-      const response = await fetch(`${apiBase}/door/assistants-status`);
+      const response = await fetch(`${apiBase}/assistants/status`);
       const data = await response.json();
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'No se pudo obtener estado de ayudantes');
