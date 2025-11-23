@@ -204,7 +204,7 @@ generador-qr/
 │   ├── 📁 models/             # Modelos de datos (solo queries SELECT)
 │   ├── 📁 routes/             # Endpoints API
 │   │   ├── readerToken.js    # Generación de tokens JWT
-│   │   └── door.js           # Estado de ayudantes
+│   │   └── assistants.js           # Estado de ayudantes
 │   ├── 📁 utils/              # Utilidades (logger)
 │   └── 📄 server.js           # Servidor principal
 ├── 📁 frontend/               # App Electron
