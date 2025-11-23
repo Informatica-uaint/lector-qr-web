@@ -2,7 +2,7 @@
 
 ## Visión General
 
-El backend es una API REST construida con Node.js + Express que maneja la lógica de negocio del sistema de lectura QR, validación de datos y persistencia en MySQL.
+El backend es una API REST construida con Node.js + Express que **genera tokens JWT dinámicos** para códigos QR y proporciona información de estado de asistentes desde la base de datos MySQL. El sistema es **read-only** para la base de datos, enfocándose en generación de tokens y consulta de disponibilidad de personal.
 
 ## 📁 Estructura de Archivos
 
@@ -10,12 +10,12 @@ El backend es una API REST construida con Node.js + Express que maneja la lógic
 backend/
 ├── 📄 server.js              # Servidor principal y configuración
 ├── 📁 config/
-│   └── database.js           # Pool de conexiones MySQL + logging
+│   └── database.js           # Pool de conexiones MySQL (read-only)
 ├── 📁 models/
-│   └── QRModel.js           # Lógica de negocio QR
+│   └── QRModel.js           # Consultas de estado de asistentes
 ├── 📁 routes/
-│   ├── qr.js                # Endpoints de procesamiento QR
-│   └── database.js          # Endpoints de estado DB
+│   ├── readerToken.js       # Generación de tokens JWT
+│   └── door.js              # Estado de asistentes
 ├── 📁 utils/
 │   └── logger.js            # Logger con filtro por entorno
 ├── 📄 package.json          # Dependencias y scripts
@@ -25,284 +25,267 @@ backend/
 ## 🔧 Componentes Principales
 
 ### 1. Server.js - Configuración Principal
+
 ```javascript
 // Tecnologías clave
 const express = require('express');
-const helmet = require('helmet');      // Seguridad
-const cors = require('cors');          // CORS dinámico
+const helmet = require('helmet');           // Seguridad headers
+const cors = require('cors');               // CORS dinámico
 const rateLimit = require('express-rate-limit'); // Rate limiting
 
-// Configuraciones importantes
-- Trust Proxy: Habilitado en producción
-- CORS: Dinámico basado en CORS_ORIGINS o NODE_ENV
-- Rate Limiting: 100 requests/15min por IP
-- Body Parser: Límite 10MB
-- Logging Middleware: Request logging en desarrollo
+// Rutas activas
+app.use('/api/door', doorRoutes);          // Estado de asistentes
+app.use('/api/reader', readerTokenRoutes); // Generación de tokens
 ```
+
+**Configuraciones importantes:**
+- **Trust Proxy**: Habilitado en producción
+- **CORS**: Dinámico basado en `CORS_ORIGINS` o `NODE_ENV`
+- **Rate Limiting**: 10000 requests/15min por IP (muy permisivo para dispositivos autorizados)
+- **Body Parser**: Límite 10MB
+- **Logging Middleware**: Request logging solo en desarrollo
 
 ### 2. Database Configuration (config/database.js)
+
 ```javascript
-// Clase DatabaseManager
 class DatabaseManager {
-  - Pool de conexiones MySQL con mysql2/promise
-  - Configuración robusta con timeouts y reconnect
-  - Query wrapper con logging detallado
-  - Manejo de errores con stack traces
-  - Métricas de rendimiento (duración de queries)
-}
+  constructor() {
+    this.pool = mysql.createPool({
+      host: process.env.MYSQL_HOST,
+      user: process.env.MYSQL_USER,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DB,
+      port: process.env.MYSQL_PORT,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      acquireTimeout: 60000,
+      timeout: 60000
+    });
+  }
 
-// Características
-- Connection Pooling: 10 conexiones máximo
-- Timeout: 60 segundos para acquire y query
-- Logging: Solo en NODE_ENV=development
-- Error Handling: Captura completa con contexto
-```
-
-### 3. QR Model (models/QRModel.js)
-```javascript
-// Funciones principales
-static async processQRData(qrData)     // Procesamiento completo QR
-static async findUser(email)           // Búsqueda en tablas usuarios
-static async getRegistrosCount()       // Conteo para Entrada/Salida
-static async insertRegistro()          // Inserción en tabla correcta
-static async getRecentRegistros()      // Historial reciente
-
-// Lógica de negocio
-1. Validación de timestamp (15 segundos tolerancia)
-2. Extracción y normalización de datos
-3. Búsqueda en usuarios_permitidos + usuarios_estudiantes
-4. Determinación automática Entrada/Salida (par/impar)
-5. Inserción en tabla correspondiente (registros/EST_registros)
-```
-
-### 4. Routes - API Endpoints
-
-#### QR Routes (routes/qr.js)
-```http
-POST /api/qr/process     # Procesamiento QR principal
-GET  /api/qr/recent      # Registros recientes (límite 1-100)
-GET  /api/qr/stats       # Estadísticas (placeholder)
-```
-
-#### Database Routes (routes/database.js)
-```http
-GET  /api/db/test        # Test conexión simple
-GET  /api/db/status      # Estado detallado + versión MySQL
-POST /api/db/reconnect   # Forzar reconexión
-```
-
-### 5. Utils - Logger (utils/logger.js)
-```javascript
-// Métodos disponibles
-logger.log()    // Solo en desarrollo
-logger.info()   // Solo en desarrollo  
-logger.warn()   // Solo en desarrollo
-logger.error()  // Siempre (incluso en producción)
-logger.debug()  // Solo en desarrollo
-
-// Control por NODE_ENV
-const isDevelopment = process.env.NODE_ENV === 'development';
-```
-
-## 🛡️ Seguridad Implementada
-
-### Helmet.js Security Headers
-```javascript
-app.use(helmet()); // Configura headers seguros automáticamente
-```
-
-### CORS Dinámico
-```javascript
-// Desarrollo
-allowedOrigins = ['http://localhost:3020', 'http://127.0.0.1:3020']
-
-// Producción  
-allowedOrigins = ['https://lector.lab.informaticauaint.com', ...]
-
-// Desde .env (override)
-allowedOrigins = process.env.CORS_ORIGINS.split(',')
-```
-
-### Rate Limiting
-```javascript
-// Configuración
-windowMs: 15 * 60 * 1000  // 15 minutos
-max: 100                  // 100 requests máximo
-message: 'Demasiadas solicitudes desde esta IP'
-```
-
-### Input Validation (Joi Schema)
-```javascript
-const qrSchema = Joi.object({
-  name: Joi.string().min(1).max(100),
-  nombre: Joi.string().min(1).max(100),
-  surname: Joi.string().min(1).max(100), 
-  apellido: Joi.string().min(1).max(100),
-  email: Joi.string().email().required(),
-  type: Joi.string().min(1).max(50),
-  tipo: Joi.string().min(1).max(50),
-  tipoUsuario: Joi.string().valid('ESTUDIANTE', 'AYUDANTE'),
-  timestamp: Joi.number().integer().positive().required()
-}).or('name', 'nombre').or('surname', 'apellido');
-```
-
-## 📊 Flujo de Procesamiento QR
-
-```
-1. 📨 Request POST /api/qr/process
-   ├── Body: { qrData: { name, surname, email, timestamp, ... } }
-   └── Headers: Content-Type: application/json
-
-2. 🔍 Validación Joi Schema  
-   ├── ✅ Campos requeridos (email, timestamp)
-   ├── ✅ Formatos correctos (email válido)
-   └── ✅ Valores permitidos (tipoUsuario ENUM)
-
-3. ⏱️ Validación Timestamp
-   ├── Tolerancia: ±15 segundos
-   ├── Prevent replay attacks
-   └── QR debe ser "fresco"
-
-4. 👤 Búsqueda Usuario
-   ├── Tabla: usuarios_permitidos (ayudantes)
-   ├── Tabla: usuarios_estudiantes  
-   └── Filtro: activo = 1
-
-5. 📊 Determinación Entrada/Salida
-   ├── Query: COUNT(*) WHERE email + fecha actual
-   ├── Par → Entrada
-   └── Impar → Salida
-
-6. 💾 Inserción Registro
-   ├── Tabla: registros (ayudantes)
-   ├── Tabla: EST_registros (estudiantes)
-   └── Datos: fecha, hora, nombre, email, tipo
-
-7. 📤 Response
-   ├── ✅ Success: { success: true, tipo: "Entrada", message, ... }
-   └── ❌ Error: { success: false, message: "Error específico" }
-```
-
-## ⚙️ Variables de Entorno
-
-### Configuración Database
-```env
-MYSQL_HOST=localhost        # Host MySQL
-MYSQL_USER=root            # Usuario MySQL
-MYSQL_PASSWORD=secret      # Password MySQL
-MYSQL_DB=registro_qr       # Base de datos
-MYSQL_PORT=3306           # Puerto MySQL
-```
-
-### Configuración Servidor
-```env  
-PORT=3001                 # Puerto API
-NODE_ENV=development      # Entorno (development/production)
-API_SECRET=secret_key     # Secret para auth futuro
-```
-
-### Configuración CORS
-```env
-CORS_ORIGINS=http://localhost:3020,http://127.0.0.1:3020
-```
-
-## 🚀 Scripts Disponibles
-
-```json
-{
-  "start": "node server.js",                    // Producción básica
-  "start:prod": "dotenv -e .env.prod node server.js",     // Prod con env específico
-  "start:prod-api": "dotenv -e .env.prod-api node server.js", // Prod API testing
-  "dev": "dotenv -e .env.dev nodemon server.js",          // Desarrollo
-  "dev:prod-api": "dotenv -e .env.prod-api nodemon server.js" // Dev con prod API
-}
-```
-
-## 📈 Métricas y Monitoring
-
-### Database Query Logging (desarrollo)
-```
-🔍 [DB QUERY]
-📝 SQL: SELECT * FROM usuarios_permitidos WHERE email = ?
-📋 Params: ['usuario@uai.cl']  
-✅ Rows affected/returned: 1
-⏱️  Query duration: 25ms
-🔚 [DB QUERY END]
-```
-
-### Request Logging (desarrollo)
-```
-2024-01-15T10:30:45.123Z - POST /api/qr/process
-Headers: { content-type: 'application/json', ... }
-Body: { "qrData": { "email": "...", ... } }
-```
-
-### Error Tracking
-```
-❌ [DB ERROR]
-📝 SQL: INSERT INTO registros (...)
-💥 Error: Duplicate entry for key 'PRIMARY'
-⏱️  Query duration: 15ms
-🔚 [DB ERROR END]
-```
-
-## 🔄 Estados y Health Checks
-
-### Health Endpoint
-```http
-GET /health
-Response: {
-  "status": "ok",
-  "timestamp": "2024-01-15T10:30:45.123Z", 
-  "service": "QR Lector API",
-  "version": "1.0.0"
-}
-```
-
-### Database Status
-```http
-GET /api/db/status  
-Response: {
-  "success": true,
-  "message": "Base de datos operativa",
-  "data": {
-    "server_time": "2024-01-15 10:30:45",
-    "version": "8.0.35-0ubuntu0.22.04.1",
-    "host": "localhost", 
-    "port": "3306",
-    "database": "registro_qr"
+  async query(sql, params) {
+    // Query wrapper con logging y manejo de errores
+    // Solo operaciones SELECT (read-only)
   }
 }
 ```
 
-## 🐛 Error Handling
+**Características:**
+- **Connection Pooling**: Máximo 10 conexiones concurrentes
+- **Timeouts**: 60 segundos para acquire y query
+- **Logging**: Solo en `NODE_ENV=development`
+- **Read-only**: No hay operaciones INSERT, UPDATE, DELETE
+- **Error Handling**: Captura completa con stack traces
 
-### Niveles de Error
-1. **Validation Errors** → 400 Bad Request
-2. **Business Logic Errors** → 400 Bad Request  
-3. **Database Errors** → 500 Internal Server Error
-4. **Network/Timeout Errors** → 500 Internal Server Error
+### 3. QRModel (models/QRModel.js)
 
-### Estructura de Error Response
-```json
-{
-  "success": false,
-  "message": "Descripción específica del error",
-  "timestamp": "2024-01-15T10:30:45.123Z",
-  "errorType": "USUARIO_NO_AUTORIZADO" // Opcional
+```javascript
+class QRModel {
+  // Verifica cuántos ayudantes están presentes (Entrada sin Salida)
+  static async checkAssistantsPresent() {
+    // Query: SELECT de registros del día, agrupar por email
+    // Contar emails donde último tipo = 'Entrada'
+    return cantidadAyudantes;
+  }
+
+  // Obtiene detalles de ayudantes presentes
+  static async getAssistantsPresent() {
+    // Query: SELECT de registros del día
+    // Filtrar: último tipo = 'Entrada'
+    // Return: [{email, nombre, apellido, horaEntrada}]
+    return ayudantesDentro;
+  }
 }
 ```
 
-## 🧪 Testing y Debugging  
+**Lógica de negocio:**
+1. **Consultar registros del día actual** desde tabla `registros`
+2. **Agrupar por email** para obtener el último registro de cada ayudante
+3. **Filtrar por tipo "Entrada"** (indica que están dentro del laboratorio)
+4. **Contar o retornar detalles** según el método llamado
 
-### Logs de Desarrollo
-- ✅ Request/Response completo
-- ✅ Query SQL con parámetros
-- ✅ Timing de operaciones
-- ✅ Stack traces completos
+### 4. Routes - API Endpoints
 
-### Logs de Producción  
-- ❌ Sin información sensible
-- ✅ Solo errores críticos
-- ✅ Métricas básicas
-- ✅ Health status
+#### Reader Token Routes (routes/readerToken.js)
+
+```javascript
+const jwt = require('jsonwebtoken');
+
+router.get('/token', async (req, res) => {
+  const payload = {
+    station_id: process.env.STATION_ID || "1",
+    timestamp: Date.now(),
+    type: "reader_token"
+  };
+
+  const token = jwt.sign(payload,
+    process.env.READER_QR_SECRET,
+    { expiresIn: process.env.TOKEN_EXPIRATION_SECONDS || 60 }
+  );
+
+  res.json({
+    success: true,
+    token,
+    expiresIn: parseInt(process.env.TOKEN_EXPIRATION_SECONDS || 60),
+    timestamp: new Date().toISOString()
+  });
+});
+```
+
+**Endpoints:**
+- `GET /api/reader/token` - Genera JWT firmado con expiración de 60s
+
+#### Door Routes (routes/door.js)
+
+```javascript
+router.get('/assistants-status', async (req, res) => {
+  const count = await QRModel.checkAssistantsPresent();
+  const assistants = await QRModel.getAssistantsPresent();
+
+  res.json({
+    success: true,
+    assistantsCount: count,
+    labOpen: count >= 2,
+    assistants: assistants,
+    timestamp: new Date().toISOString()
+  });
+});
+```
+
+**Endpoints:**
+- `GET /api/door/assistants-status` - Obtiene cantidad de ayudantes presentes
+- `POST /api/door/open` - Retorna 410 (deprecado, manejado por Flask)
+- `POST /api/door/check-and-open` - Retorna 410 (deprecado, manejado por Flask)
+
+### 5. Logger (utils/logger.js)
+
+```javascript
+class Logger {
+  log(message, ...args) {
+    // Solo imprime en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[${timestamp}]`, message, ...args);
+    }
+  }
+
+  debug(message, ...args) {
+    // Solo imprime en desarrollo
+  }
+
+  error(message, ...args) {
+    // Siempre imprime errores
+  }
+}
+```
+
+**Niveles de log:**
+- **log/debug**: Solo en desarrollo
+- **error**: Siempre activo
+
+## 🔐 Seguridad
+
+### Variables de Entorno Críticas
+
+```bash
+# JWT Signing
+READER_QR_SECRET=your-secret-key-here    # Nunca commitear
+
+# Station Config
+STATION_ID=1                              # Identificador de estación
+TOKEN_EXPIRATION_SECONDS=60               # Expiración del token
+
+# Database (read-only access)
+MYSQL_HOST=10.0.3.54
+MYSQL_USER=root
+MYSQL_PASSWORD=***                        # Nunca commitear
+MYSQL_DB=registro_qr
+```
+
+### Medidas de Seguridad
+
+1. **JWT Signing**: Tokens firmados con `HS256` y secret key
+2. **CORS**: Configuración restrictiva por entorno
+3. **Helmet.js**: Headers de seguridad automáticos
+4. **Rate Limiting**: Previene abuse de API
+5. **Input Sanitization**: Express body parser con límites
+6. **Environment Variables**: Secrets nunca en código
+7. **Read-only DB**: No hay operaciones de escritura
+
+## 📊 Flujo de Datos
+
+### Generación de Token
+
+```
+Frontend Request
+    ↓
+GET /api/reader/token
+    ↓
+JWT.sign({station_id, timestamp, type}, SECRET, {expiresIn: 60})
+    ↓
+Return {token, expiresIn, timestamp}
+    ↓
+Frontend display as QR
+```
+
+### Consulta de Asistentes
+
+```
+Frontend Request
+    ↓
+GET /api/door/assistants-status
+    ↓
+QRModel.checkAssistantsPresent()
+    ↓
+SELECT FROM registros WHERE fecha=TODAY
+    ↓
+Group by email, filter tipo='Entrada'
+    ↓
+Return {assistantsCount, labOpen, assistants}
+```
+
+## 🚀 Deployment
+
+### Scripts NPM
+
+```bash
+npm run dev              # Nodemon con .env.dev
+npm run dev:prod-api     # Nodemon con .env.prod-api
+npm run start            # Node production
+npm run start:prod       # Node con .env.prod
+npm run version:major    # Bump major version (2.0.0 -> 3.0.0)
+npm run version:minor    # Bump minor version (2.0.0 -> 2.1.0)
+npm run version:patch    # Bump patch version (2.0.0 -> 2.0.1)
+```
+
+### Docker
+
+```bash
+docker-compose up -d mysql api          # Solo backend + DB
+docker-compose logs -f api              # Ver logs
+```
+
+## 📝 Notas de Arquitectura
+
+### Cambios en v2.0.0
+
+**Eliminado:**
+- ❌ Endpoints de procesamiento de QR (`/api/qr/process`, `/api/qr/recent`)
+- ❌ Endpoints de gestión de DB (`/api/db/test`, `/api/db/reconnect`)
+- ❌ Validación Joi de QR data
+- ❌ Funciones de escritura en QRModel (`processQRData`, `insertRegistro`)
+- ❌ Dependencia `joi`
+
+**Agregado:**
+- ✅ Generación de tokens JWT (`/api/reader/token`)
+- ✅ Firma JWT con `jsonwebtoken`
+- ✅ Modelo simplificado solo para consultas (read-only)
+
+### Base de Datos
+
+La base de datos es **gestionada por otro servicio** (backend Flask). Este servicio solo realiza **consultas SELECT** para:
+
+- Verificar estado de asistentes
+- Determinar si el laboratorio está abierto
+
+**No hay operaciones de escritura** (INSERT, UPDATE, DELETE).

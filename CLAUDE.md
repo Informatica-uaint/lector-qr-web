@@ -4,28 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Architecture
 
-This is a QR code reader system for Universidad Adolfo Ibáñez's computer lab with separated frontend/backend architecture:
+This is a QR code **generator** system for Universidad Adolfo Ibáñez's computer lab with separated frontend/backend architecture:
 
 - **Frontend**: Electron application using Next.js + React + Tailwind CSS (port 3020)
-- **Backend**: Node.js REST API using Express + MySQL (port 3001)  
-- **Database**: MySQL with `registro_qr` database containing `qr_registros` table
+- **Backend**: Node.js REST API using Express + MySQL (port 3001)
+- **Database**: MySQL managed by Flask backend (external) - this app only reads assistants status
 
-The system processes QR codes containing student/staff information and registers entry/exit to the laboratory.
+The system **generates dynamic QR codes** (JWT tokens) that change every 60 seconds. These QR codes are scanned by the mobile app HorariosLabInf to validate credentials.
 
 ### Key Components
 
-- **Frontend (`frontend/`)**: Electron app with camera integration using @zxing/library for QR detection
-- **Backend (`backend/`)**: REST API with routes for QR processing (`/api/qr`) and database management (`/api/db`)
-- **Database (`database/init.sql`)**: MySQL schema with qr_registros table for attendance tracking
+- **Frontend (`frontend/`)**: Electron app that displays dynamic QR codes using react-qr-code library
+- **Backend (`backend/`)**: REST API with routes for JWT token generation (`/api/reader`) and assistants status (`/api/door`)
+- **Database (`database/init.sql`)**: MySQL schema - only queried for checking assistants status
 
 ### Data Flow
 
-1. Frontend captures video stream from camera
-2. @zxing/library detects QR codes in video stream
-3. QR data sent to backend API via axios
-4. Backend validates with Joi schema and processes through QRModel
-5. Data stored in MySQL database
-6. Response sent back to frontend for UI feedback
+1. Frontend requests JWT token from backend every 60 seconds
+2. Backend generates signed JWT with station_id and timestamp
+3. Token sent back to frontend
+4. Frontend displays token as QR code using react-qr-code
+5. Mobile app scans QR and validates with Flask backend
+6. Backend queries database to show how many assistants are present (lab open/closed status)
 
 ## Development Commands
 
@@ -37,7 +37,7 @@ npm run dev          # Start with nodemon (hot reload)
 npm start           # Production start
 ```
 
-### Frontend Development  
+### Frontend Development
 ```bash
 cd frontend
 npm install
@@ -50,14 +50,17 @@ npm run build:electron # Build Electron app
 
 ### Docker Development
 ```bash
-# Backend + MySQL only (recommended for Electron development)
-docker-compose up -d mysql api
+# Development: Backend + MySQL (recommended for Electron development)
+docker-compose -f docker-compose.dev.yml up -d mysql-dev api-dev
 
-# Full stack including web frontend
-docker-compose --profile web up -d
+# Full development stack
+docker-compose -f docker-compose.dev.yml up -d
 
 # Backend logs
-docker-compose logs -f api
+docker-compose -f docker-compose.dev.yml logs -f api-dev
+
+# Production deployment (no MySQL - uses external database)
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ## Gestión de Versiones
@@ -69,17 +72,17 @@ Ambos proyectos (frontend y backend) incluyen scripts para manejar versiones sig
 **Frontend (frontend/):**
 ```bash
 cd frontend
-npm run version:patch   # 1.5.1 -> 1.5.2 (fixes y cambios pequeños)
-npm run version:minor   # 1.5.1 -> 1.6.0 (nuevas funcionalidades)
-npm run version:major   # 1.5.1 -> 2.0.0 (cambios grandes/breaking)
+npm run version:patch   # 2.0.0 -> 2.0.1 (fixes y cambios pequeños)
+npm run version:minor   # 2.0.0 -> 2.1.0 (nuevas funcionalidades)
+npm run version:major   # 2.0.0 -> 3.0.0 (cambios grandes/breaking)
 ```
 
 **Backend (backend/):**
 ```bash
 cd backend
-npm run version:patch   # 1.5.1 -> 1.5.2 (fixes y cambios pequeños)
-npm run version:minor   # 1.5.1 -> 1.6.0 (nuevas funcionalidades)
-npm run version:major   # 1.5.1 -> 2.0.0 (cambios grandes/breaking)
+npm run version:patch   # 2.0.0 -> 2.0.1 (fixes y cambios pequeños)
+npm run version:minor   # 2.0.0 -> 2.1.0 (nuevas funcionalidades)
+npm run version:major   # 2.0.0 -> 3.0.0 (cambios grandes/breaking)
 ```
 
 ### Criterios de Versionado
@@ -87,70 +90,94 @@ npm run version:major   # 1.5.1 -> 2.0.0 (cambios grandes/breaking)
 - **Minor (Y)**: Nuevas funcionalidades, endpoints, componentes
 - **Major (X)**: Cambios arquitectónicos, breaking changes, reescrituras
 
-### Versión Actual: v1.5.1
+### Versión Actual: v2.0.0
 Las versiones se muestran automáticamente en el footer de la aplicación frontend.
 
 ## Environment Configuration
 
-### Backend `.env` (backend/.env)
+All `.env` files are now consolidated in the **root directory** and organized by sections.
+
+### Root `.env.dev` (Development)
 ```
-MYSQL_HOST=10.0.3.54
+# ==========================================
+# [GENERAL]
+# ==========================================
+NODE_ENV=development
+TZ=America/Santiago
+
+# ==========================================
+# [DATABASE] - Read-only access
+# ==========================================
+MYSQL_HOST=localhost  # Development: localhost or mysql-dev (Docker)
+                       # Production: 10.0.3.54 (external Flask database)
 MYSQL_USER=root
-MYSQL_PASSWORD=CxJEv99!fnm1WUS6GyubBvPlqYjUP@
+MYSQL_PASSWORD=your_mysql_password_here
 MYSQL_DB=registro_qr
 MYSQL_PORT=3306
-PORT=3001
-NODE_ENV=development
-```
 
-### Frontend `.env` (frontend/.env)  
-```
-NODE_ENV=development
+# ==========================================
+# [BACKEND]
+# ==========================================
+PORT=3001
+READER_QR_SECRET=your-unique-dev-secret-here
+STATION_ID=lector-web-01
+TOKEN_EXPIRATION_SECONDS=60
+CORS_ORIGINS=http://localhost:3020,http://127.0.0.1:3020
+
+# ==========================================
+# [FRONTEND]
+# ==========================================
 API_BASE_URL=http://localhost:3001/api
 ```
 
+**Available environments:**
+- `.env.dev` - Local development
+- `.env.prod` - Production deployment
+- `.env.prod-api` - Hybrid (local frontend + production API)
+- `.env.build` - Docker build environment
+
 ## Key API Endpoints
 
-- `POST /api/qr/process` - Process QR data and register attendance
-- `GET /api/qr/recent?limit=N` - Get recent registrations 
-- `GET /api/db/test` - Test database connectivity
+- `GET /api/reader/token` - Generate JWT token for QR display (refreshes every 60s)
+- `GET /api/door/assistants-status` - Get count of assistants present (lab status)
 - `GET /health` - API health check
 
 ## Database Schema
 
-The `qr_registros` table stores attendance records:
-- `id` (AUTO_INCREMENT PRIMARY KEY)
-- `nombre` (VARCHAR(255)) - First name
-- `apellido` (VARCHAR(255)) - Last name  
-- `email` (VARCHAR(255)) - Email address
-- `tipo` (ENUM: 'Entrada', 'Salida') - Entry/Exit type
-- `timestamp` (TIMESTAMP) - Registration time
-- `fecha` (DATE, generated) - Date derived from timestamp
+**Important**: The database is managed by a Flask backend (separate project). This app has **read-only** access and only queries:
 
-## QR Data Format
+- `registros` table - To check which assistants are currently in the lab (Entrada/Salida tracking)
 
-Expected QR JSON structure (validated with Joi):
+**Development**: MySQL included in docker-compose.dev.yml (database/init.sql)
+**Production**: MySQL external, managed by Flask (MYSQL_HOST=10.0.3.54)
+
+## QR Token Format
+
+Generated JWT structure:
 ```json
 {
-  "name": "Juan",           // or "nombre"
-  "surname": "Pérez",       // or "apellido" 
-  "email": "juan@uai.cl",   // required
-  "type": "Entrada",        // or "tipo" or "tipoUsuario"
-  "timestamp": 1693234567890 // required
+  "station_id": "1",
+  "timestamp": 1693234567890,
+  "type": "reader_token",
+  "exp": 1693234627890  // 60 seconds expiration
 }
 ```
 
 ## Electron Integration
 
 The frontend uses Electron's IPC (Inter-Process Communication):
-- `window.electronAPI.database.processQR()` - Send QR data to backend
+- `window.electronAPI.checkConnection()` - Verify backend connectivity
 - `window.electronAPI.quitApp()` - Close application
-- Main process handles API communication via axios
+- `window.electronAPI.getAppVersion()` - Get application version
+- React components use fetch() directly for API calls (tokens, assistants status)
 
 ## Development Tips
 
 - Use `npm run dev` in frontend for full Electron development experience
-- Use Docker for backend/database, local Electron for frontend development  
-- Camera requires HTTPS or localhost for getUserMedia API
-- QR processing includes 3-second confirmation screen with automatic resume
-- Frontend ports: Next.js (3020), Backend API (3001), MySQL (3306)
+- Use Docker for backend/database, local Electron for frontend development
+- JWT tokens expire every 60 seconds to ensure fresh QR codes
+- Assistants status determines if lab is open (shown in frontend panel)
+- Frontend ports: Next.js (3020), Backend API (3001), MySQL (3306 in dev only)
+- QR generation happens client-side using react-qr-code library
+- All `.env.*` files are consolidated in root directory (organized by sections)
+- Database is read-only for this project (managed by Flask backend)

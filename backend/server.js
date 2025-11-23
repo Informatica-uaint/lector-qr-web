@@ -2,11 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const logger = require('./utils/logger');
-const qrRoutes = require('./routes/qr');
-const dbRoutes = require('./routes/database');
 const doorRoutes = require('./routes/door');
 const readerTokenRoutes = require('./routes/readerToken');
 const packageJson = require('./package.json');
@@ -81,17 +80,15 @@ app.use((req, res, next) => {
 });
 
 // Rutas
-app.use('/api/qr', qrRoutes);
-app.use('/api/db', dbRoutes);
 app.use('/api/door', doorRoutes);
 app.use('/api/reader', readerTokenRoutes);
 
 // Ruta de health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'QR Lector API',
+    service: 'QR Generator API',
     version: packageJson.version
   });
 });
@@ -100,7 +97,7 @@ app.get('/health', (req, res) => {
 app.get('/api/version', (req, res) => {
   res.json({
     success: true,
-    service: 'QR Lector API',
+    service: 'QR Generator API',
     version: packageJson.version,
     timestamp: new Date().toISOString()
   });
@@ -133,7 +130,7 @@ app.use('*', (req, res) => {
 
 // Iniciar servidor
 app.listen(PORT, HOST, () => {
-  logger.log(`🚀 QR Lector API ejecutándose en puerto ${PORT}`);
+  logger.log(`🚀 QR Generator API ejecutándose en puerto ${PORT}`);
   logger.log(`🌐 Bind address: ${HOST}`);
   logger.log(`📊 Environment: ${process.env.NODE_ENV}`);
   logger.log(`🗄️ Base de datos: ${process.env.MYSQL_HOST}:${process.env.MYSQL_PORT}/${process.env.MYSQL_DB}`);

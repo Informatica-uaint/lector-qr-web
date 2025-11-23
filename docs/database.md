@@ -2,203 +2,159 @@
 
 ## Visión General
 
-El sistema utiliza MySQL como base de datos principal para almacenar registros de asistencia del laboratorio de informática. La base de datos está diseñada para manejar tanto ayudantes como estudiantes con tablas separadas para optimizar rendimiento y separación de datos.
+**IMPORTANTE**: La base de datos `registro_qr` es creada y gestionada por un proyecto Flask completamente separado. El **QR Generator** únicamente realiza consultas de **solo lectura** para obtener el estado actual de los ayudantes presentes en el laboratorio.
 
-## 📊 Estructura de Base de Datos
+### Rol de la Base de Datos en QR Generator
 
-### Base de Datos Principal: `registro_qr`
+- **Read-Only**: Solo consultas SELECT
+- **No gestión de esquema**: No crea ni modifica tablas
+- **No escritura**: No realiza INSERT/UPDATE/DELETE
+- **Propósito**: Verificar cuántos ayudantes están presentes
 
-```sql
-CREATE DATABASE IF NOT EXISTS registro_qr;
+## 🏗️ Arquitectura de Acceso a Datos
+
+```
+┌─────────────────────────────────────────────────────┐
+│         PROYECTO FLASK (SEPARADO)                   │
+│     - Crea la base de datos registro_qr             │
+│     - Gestiona el esquema de tablas                 │
+│     - Escribe registros de entrada/salida           │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     │ GESTIONA (INSERT/UPDATE)
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│        MYSQL DATABASE: registro_qr                  │
+│                                                     │
+│  ┌──────────────────────────────────────────────┐  │
+│  │          registros (Tabla Principal)         │  │
+│  │  - fecha, hora, dia, nombre, apellido        │  │
+│  │  - email, metodo, tipo (Entrada/Salida)      │  │
+│  └──────────────────────────────────────────────┘  │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     │ CONSULTA (SELECT)
+                     ▼
+┌─────────────────────────────────────────────────────┐
+│         QR GENERATOR (ESTE PROYECTO)                │
+│     - Solo lectura de tabla `registros`             │
+│     - Calcula ayudantes presentes                   │
+│     - Muestra estado en la interfaz                 │
+└─────────────────────────────────────────────────────┘
 ```
 
-## 📋 Esquema de Tablas
+## 📊 Tabla Consultada: `registros`
 
-### 1. Tabla Principal (Legacy): `qr_registros`
+El QR Generator **solo lee** de la tabla `registros` para determinar el estado de los ayudantes:
+
 ```sql
-CREATE TABLE IF NOT EXISTS qr_registros (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL,
-    apellido VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    tipo ENUM('Entrada', 'Salida') NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    fecha DATE GENERATED ALWAYS AS (DATE(timestamp)) STORED,
-    INDEX idx_email (email),
-    INDEX idx_fecha (fecha),
-    INDEX idx_timestamp (timestamp)
-);
+SELECT email, tipo, hora, nombre, apellido
+FROM registros
+WHERE fecha = ?
+ORDER BY hora ASC
 ```
 
-**Características:**
-- **Campo Generated**: `fecha` se calcula automáticamente desde `timestamp`
-- **Índices Optimizados**: Para búsquedas por email, fecha y timestamp
-- **ENUM tipo**: Garantiza solo valores 'Entrada' o 'Salida'
+### Estructura de Tabla (Inferida)
 
-### 2. Tabla de Usuarios Permitidos: `usuarios_permitidos`
-```sql
--- Tabla para ayudantes y personal autorizado
-SELECT id, nombre, apellido, email, TP as tipo, activo 
-FROM usuarios_permitidos 
-WHERE email = ? AND activo = 1
-```
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `fecha` | DATE | Fecha del registro (YYYY-MM-DD) |
+| `hora` | TIME | Hora del registro (HH:MM:SS) |
+| `dia` | VARCHAR | Día de la semana |
+| `nombre` | VARCHAR | Nombre del ayudante |
+| `apellido` | VARCHAR | Apellido del ayudante |
+| `email` | VARCHAR | Email único del ayudante |
+| `metodo` | VARCHAR | Método de registro ('QR', 'Manual', etc.) |
+| `tipo` | ENUM | Tipo de registro ('Entrada', 'Salida') |
 
-**Estructura Inferida:**
-- `id` - Identificador único
-- `nombre` - Primer nombre  
-- `apellido` - Apellido
-- `email` - Correo electrónico (único)
-- `TP` - Tipo de personal/puesto
-- `activo` - Estado activo (1=activo, 0=inactivo)
+**Nota**: Esta estructura es gestionada por el proyecto Flask. El QR Generator **no crea** esta tabla.
 
-### 3. Tabla de Estudiantes: `usuarios_estudiantes`
-```sql
--- Tabla específica para estudiantes
-SELECT id, nombre, apellido, email, TP as tipo, activo 
-FROM usuarios_estudiantes 
-WHERE email = ? AND activo = 1
-```
+## 🔍 Lógica de Consulta
 
-**Estructura Similar a `usuarios_permitidos`:**
-- Separación lógica entre ayudantes y estudiantes
-- Mismo esquema básico de campos
-- Permite diferentes políticas de acceso
+### 1. Verificar Ayudantes Presentes
 
-### 4. Tabla de Registros Ayudantes: `registros`
-```sql
-INSERT INTO registros (fecha, hora, dia, nombre, apellido, email, metodo, tipo)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-```
+El método `QRModel.checkAssistantsPresent()` determina cuántos ayudantes están actualmente en el laboratorio:
 
-**Estructura Inferida:**
-- `fecha` - Fecha del registro (YYYY-MM-DD)
-- `hora` - Hora del registro (HH:MM:SS)
-- `dia` - Día de la semana
-- `nombre` - Nombre del usuario
-- `apellido` - Apellido del usuario
-- `email` - Correo electrónico
-- `metodo` - Método de registro ('QR', 'Manual', etc.)
-- `tipo` - Tipo de registro ('Entrada', 'Salida')
-
-### 5. Tabla de Registros Estudiantes: `EST_registros`
-```sql
-INSERT INTO EST_registros (fecha, hora, dia, nombre, apellido, email, metodo, tipo)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-```
-
-**Estructura Idéntica a `registros`:**
-- Separación física de datos de estudiantes
-- Permite análisis independiente
-- Optimización de consultas específicas
-
-## 🔐 Usuarios y Permisos
-
-### Usuario de Aplicación
-```sql
-CREATE USER IF NOT EXISTS 'qr_user'@'%' IDENTIFIED BY 'qr_password';
-GRANT SELECT, INSERT, UPDATE ON registro_qr.* TO 'qr_user'@'%';
-FLUSH PRIVILEGES;
-```
-
-**Características de Seguridad:**
-- **Principio de Menor Privilegio**: Solo SELECT, INSERT, UPDATE
-- **Sin DELETE**: Previene eliminación accidental de datos
-- **Sin CREATE/DROP**: Usuario no puede modificar estructura
-
-## 📈 Estrategia de Indexación
-
-### Índices Implementados
-```sql
--- Tabla qr_registros
-INDEX idx_email (email)      -- Búsquedas por usuario
-INDEX idx_fecha (fecha)      -- Consultas por fecha
-INDEX idx_timestamp (timestamp) -- Ordenamiento temporal
-```
-
-### Rendimiento Optimizado
-- **Búsquedas por Email**: O(log n) gracias a índice
-- **Filtros por Fecha**: Consultas rápidas para reportes diarios
-- **Ordenamiento Temporal**: Listados cronológicos eficientes
-
-## 🔄 Lógica de Negocio en Modelo
-
-### Algoritmo Entrada/Salida
 ```javascript
-// Conteo de registros del día
-const registrosCount = await this.getRegistrosCount(email, fechaHoy, qrTipoUsuario);
-const tipoRegistro = registrosCount % 2 === 0 ? 'Entrada' : 'Salida';
-```
+static async checkAssistantsPresent() {
+  // 1. Obtener fecha actual
+  const fechaHoy = new Date().toISOString().split('T')[0];
 
-**Regla de Negocio:**
-- **Registro Par (0, 2, 4...)** → Entrada
-- **Registro Impar (1, 3, 5...)** → Salida
-- **Contador por Usuario/Día**: Reinicia cada día
+  // 2. Consultar registros del día (solo lectura)
+  const registros = await dbManager.query(`
+    SELECT email, tipo, hora, nombre, apellido
+    FROM registros WHERE fecha = ? ORDER BY hora ASC
+  `, [fechaHoy]);
 
-### Validación de Timestamps
-```javascript
-const timeDiffSeconds = (currentTimeMs - qrTimestamp) / 1000;
-if (Math.abs(timeDiffSeconds) > 15) {
-  return { success: false, message: 'QR expirado o inválido' };
+  // 3. Procesar registros para determinar último estado
+  const ayudantesStatus = {};
+  registros.forEach(registro => {
+    ayudantesStatus[registro.email] = {
+      ultimoTipo: registro.tipo,
+      ultimaHora: registro.hora,
+      nombre: registro.nombre,
+      apellido: registro.apellido
+    };
+  });
+
+  // 4. Contar solo los que tienen último registro = 'Entrada'
+  const ayudantesDentro = Object.values(ayudantesStatus)
+    .filter(status => status.ultimoTipo === 'Entrada');
+
+  return ayudantesDentro.length;
 }
 ```
 
-**Características:**
-- **Tolerancia**: ±15 segundos
-- **Prevención Replay**: QR no reutilizable
-- **Sincronización**: Requiere clocks sincronizados
+**Algoritmo**:
+1. Obtiene todos los registros del día actual
+2. Para cada email, guarda el **último** registro (tipo: Entrada o Salida)
+3. Cuenta cuántos tienen último registro = 'Entrada'
 
-## 🎯 Consultas Principales
+### 2. Obtener Detalles de Ayudantes
 
-### 1. Búsqueda de Usuario
-```sql
--- En usuarios_permitidos
-SELECT id, nombre, apellido, email, TP as tipo, activo 
-FROM usuarios_permitidos 
-WHERE email = ? AND activo = 1
+El método `QRModel.getAssistantsPresent()` retorna información detallada:
 
--- En usuarios_estudiantes  
-SELECT id, nombre, apellido, email, TP as tipo, activo 
-FROM usuarios_estudiantes 
-WHERE email = ? AND activo = 1
+```javascript
+static async getAssistantsPresent() {
+  const fechaHoy = new Date().toISOString().split('T')[0];
+
+  const registros = await dbManager.query(`
+    SELECT email, tipo, hora, nombre, apellido
+    FROM registros WHERE fecha = ? ORDER BY hora ASC
+  `, [fechaHoy]);
+
+  const ayudantesStatus = {};
+  registros.forEach(registro => {
+    ayudantesStatus[registro.email] = {
+      ultimoTipo: registro.tipo,
+      ultimaHora: registro.hora,
+      nombre: registro.nombre,
+      apellido: registro.apellido
+    };
+  });
+
+  return Object.values(ayudantesStatus)
+    .filter(status => status.ultimoTipo === 'Entrada')
+    .map(ayudante => ({
+      nombre: ayudante.nombre,
+      apellido: ayudante.apellido,
+      hora: ayudante.ultimaHora
+    }));
+}
 ```
 
-### 2. Conteo de Registros del Día
-```sql
--- Para ayudantes
-SELECT COUNT(*) as registros
-FROM registros 
-WHERE email = ? AND fecha = ?
-
--- Para estudiantes
-SELECT COUNT(*) as registros
-FROM EST_registros 
-WHERE email = ? AND fecha = ?
-```
-
-### 3. Inserción de Registro
-```sql
--- Tabla dinámica según tipo de usuario
-INSERT INTO ${tabla} (fecha, hora, dia, nombre, apellido, email, metodo, tipo)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-```
-
-### 4. Registros Recientes
-```sql
-SELECT * FROM registros 
-ORDER BY fecha DESC, hora DESC 
-LIMIT ?
-```
+**Retorna**: Array de ayudantes con nombre, apellido y hora de entrada.
 
 ## 🚀 Configuración de Conexión
 
-### Database Manager Configuration
+### Database Manager (backend/config/database.js)
+
 ```javascript
-// Pool de conexiones MySQL
 const pool = mysql.createPool({
-  host: process.env.MYSQL_HOST || 'localhost',
-  user: process.env.MYSQL_USER || 'root', 
+  host: process.env.MYSQL_HOST,
+  user: process.env.MYSQL_USER,
   password: process.env.MYSQL_PASSWORD,
-  database: process.env.MYSQL_DB || 'registro_qr',
+  database: process.env.MYSQL_DB,
   port: process.env.MYSQL_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
@@ -208,108 +164,177 @@ const pool = mysql.createPool({
 });
 ```
 
-**Características:**
-- **Connection Pooling**: Hasta 10 conexiones simultáneas
-- **Timeouts**: 60 segundos para operaciones
-- **Queue Management**: Sin límite de cola de espera
-- **Auto-reconnect**: Manejo automático de reconexión
+### Variables de Entorno
 
-## 📊 Datos de Prueba
-
-### Registros de Ejemplo
-```sql
-INSERT INTO qr_registros (nombre, apellido, email, tipo) VALUES
-('Juan', 'Pérez', 'juan.perez@uai.cl', 'Entrada'),
-('María', 'González', 'maria.gonzalez@uai.cl', 'Entrada'),
-('Carlos', 'López', 'carlos.lopez@uai.cl', 'Salida');
-```
-
-## 🔍 Logging y Debugging
-
-### Consultas con Log
-```javascript
-// Ejemplo de query con logging detallado
-logger.debug('🔍 [DB QUERY]');
-logger.debug('📝 SQL:', sql);
-logger.debug('📋 Params:', params);
-const startTime = Date.now();
-const result = await pool.execute(sql, params);
-const duration = Date.now() - startTime;
-logger.debug('✅ Rows affected/returned:', result.length || result.affectedRows);
-logger.debug('⏱️ Query duration:', duration, 'ms');
-```
-
-## 🔧 Variables de Entorno
-
-### Configuración Base de Datos
+#### Desarrollo Local (.env.dev)
 ```env
-MYSQL_HOST=localhost
+MYSQL_HOST=localhost          # MySQL local o docker-compose
 MYSQL_USER=root
-MYSQL_PASSWORD=your_password_here
+MYSQL_PASSWORD=your_password
 MYSQL_DB=registro_qr
 MYSQL_PORT=3306
 ```
 
+#### Producción (.env.prod)
+```env
+MYSQL_HOST=10.0.3.54         # Base de datos externa gestionada por Flask
+MYSQL_USER=root
+MYSQL_PASSWORD=production_password
+MYSQL_DB=registro_qr
+MYSQL_PORT=3306
+```
+
+## 🐳 Docker Configuration
+
+### Desarrollo (docker-compose.dev.yml)
+
+Incluye MySQL local **solo para desarrollo**:
+
+```yaml
+services:
+  mysql-dev:
+    image: mysql:8.0
+    container_name: qr-mysql-dev
+    env_file:
+      - .env.dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+```
+
+**Propósito**: Permite desarrollo local sin depender de la base de datos de producción.
+
+### Producción (docker-compose.prod.yml)
+
+**NO incluye MySQL** - se conecta a base de datos externa:
+
+```yaml
+# Database is managed externally - not included in production deployment
+services:
+  api-prod:
+    image: ghcr.io/${GITHUB_REPOSITORY}/qr-backend:latest
+    env_file:
+      - .env.prod
+    # Conecta a MYSQL_HOST=10.0.3.54 (base de datos Flask)
+```
+
+## 📁 Database Initialization (Solo Desarrollo)
+
+El archivo `database/init.sql` contiene un esquema básico para desarrollo local:
+
+```sql
+CREATE DATABASE IF NOT EXISTS registro_qr;
+USE registro_qr;
+
+-- Tabla básica para desarrollo
+CREATE TABLE IF NOT EXISTS registros (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    fecha DATE NOT NULL,
+    hora TIME NOT NULL,
+    dia VARCHAR(20),
+    nombre VARCHAR(255) NOT NULL,
+    apellido VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    metodo VARCHAR(50) DEFAULT 'QR',
+    tipo ENUM('Entrada', 'Salida') NOT NULL,
+    INDEX idx_fecha (fecha),
+    INDEX idx_email (email)
+);
+```
+
+**IMPORTANTE**:
+- Este esquema es **solo para desarrollo local**
+- La base de datos de **producción** tiene un esquema más completo gestionado por Flask
+- No modificar este archivo a menos que sea necesario para testing
+
+## 🔐 Principios de Seguridad
+
+### Read-Only Access
+
+El QR Generator **nunca** ejecuta:
+- `INSERT` - No crea registros
+- `UPDATE` - No modifica datos existentes
+- `DELETE` - No elimina registros
+- `CREATE/ALTER/DROP` - No modifica esquema
+
+### Queries Permitidas
+
+Solo consultas `SELECT` con filtros específicos:
+
+```sql
+-- ✅ PERMITIDO: Lectura de registros del día
+SELECT email, tipo, hora, nombre, apellido
+FROM registros
+WHERE fecha = ?;
+
+-- ❌ PROHIBIDO: Cualquier escritura
+INSERT INTO registros (...) VALUES (...);
+UPDATE registros SET tipo = 'Salida' WHERE ...;
+DELETE FROM registros WHERE ...;
+```
+
+## 🔧 Health Check
+
+El backend incluye verificación de conexión a base de datos:
+
+```javascript
+// Endpoint: GET /health
+{
+  "status": "ok",
+  "database": "connected",  // o "disconnected"
+  "timestamp": "2025-01-22T10:30:00.000Z"
+}
+```
+
 ## 🐛 Manejo de Errores
 
-### Errores Comunes y Respuestas
+### Errores de Conexión
 
-1. **Usuario No Encontrado**
-   ```javascript
-   {
-     success: false,
-     message: "Solicita ser agregado a la base de datos", // Para estudiantes
-     errorType: "ESTUDIANTE_NO_REGISTRADO",
-     email: "usuario@ejemplo.com"
-   }
-   ```
-
-2. **QR Expirado**
-   ```javascript
-   {
-     success: false,
-     message: "QR expirado o inválido"
-   }
-   ```
-
-3. **Error de Conexión**
-   ```javascript
-   {
-     success: false,
-     message: "Error interno: Connection timeout"
-   }
-   ```
-
-## 📋 Esquema de Migración
-
-Para futuras actualizaciones:
-
-1. **Unificar Tablas**: Considerar merger `registros` y `EST_registros` con campo `tipoUsuario`
-2. **Audit Trail**: Agregar campos de auditoría (`created_at`, `updated_at`, `created_by`)
-3. **Soft Deletes**: Implementar `deleted_at` en lugar de eliminación física
-4. **Particionamiento**: Particionar por fecha para mejorar rendimiento con datos históricos
-
-## 🏗️ Arquitectura de Datos
-
-```
-┌─────────────────┐    ┌─────────────────┐
-│usuarios_permitidos│    │usuarios_estudiantes│
-└─────────┬───────┘    └─────────┬───────┘
-          │                      │
-          ▼                      ▼
-    ┌──────────┐           ┌──────────────┐
-    │registros │           │EST_registros │
-    └──────────┘           └──────────────┘
-          │                      │
-          └──────────┬───────────┘
-                     ▼
-            ┌─────────────────┐
-            │  qr_registros   │
-            │    (legacy)     │
-            └─────────────────┘
+```javascript
+{
+  "success": false,
+  "message": "Error conectando a base de datos",
+  "count": 0
+}
 ```
 
-**Flujo de Datos:**
-1. Usuario escaneado busca en tablas de usuarios
-2. Según tipo, inserta en tabla de registros correspondiente
-3. Tabla legacy mantiene compatibilidad hacia atrás
+### Sin Registros
+
+```javascript
+{
+  "success": true,
+  "count": 0,
+  "assistants": []
+}
+```
+
+### Error en Query
+
+```javascript
+{
+  "success": false,
+  "message": "Error obteniendo estado de asistentes"
+}
+```
+
+## 📋 Resumen
+
+| Aspecto | QR Generator |
+|---------|--------------|
+| **Gestión de DB** | ❌ No gestiona (Flask lo hace) |
+| **Crea esquema** | ❌ No (excepto init.sql para dev local) |
+| **Operaciones** | ✅ Solo SELECT |
+| **Tabla principal** | `registros` (lectura) |
+| **Propósito** | Contar ayudantes presentes |
+| **MySQL en producción** | ❌ No (usa DB externa) |
+| **MySQL en desarrollo** | ✅ Sí (docker-compose.dev.yml) |
+
+## 🔗 Referencias
+
+- **Backend Database Manager**: `backend/config/database.js`
+- **QR Model**: `backend/models/QRModel.js`
+- **Door Routes**: `backend/routes/door.js` (usa QRModel para obtener estado)
+- **Init Script**: `database/init.sql` (solo desarrollo)
+- **API Endpoint**: `GET /api/door/assistants-status`

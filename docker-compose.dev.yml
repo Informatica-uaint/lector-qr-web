@@ -4,7 +4,7 @@ services:
     image: mysql:8.0
     container_name: qr-mysql-dev
     env_file:
-      - .env.docker.dev
+      - .env.dev
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DB}
@@ -26,7 +26,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: qr-api-dev
     env_file:
-      - ./backend/.env.dev
+      - .env.dev
     environment:
       MYSQL_HOST: mysql-dev
     ports:
@@ -45,7 +45,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: qr-frontend-dev
     env_file:
-      - ./frontend/.env.dev
+      - .env.dev
     ports:
       - "3020:3020"
     volumes:

@@ -2,7 +2,7 @@
 
 ## Visión General
 
-El frontend es una aplicación de escritorio construida con Electron que encapsula una aplicación Next.js + React. Utiliza la cámara web para escanear códigos QR automáticamente y se comunica con el backend API para procesar los datos.
+El frontend es una aplicación de escritorio construida con Electron que encapsula una aplicación Next.js + React. **Genera códigos QR dinámicos** mediante tokens JWT que se actualizan cada 60 segundos. Utiliza la librería `react-qr-code` para codificar y visualizar tokens JWT firmados. Se comunica con el backend API para obtener tokens frescos y mostrar el estado de ayudantes presentes en el laboratorio.
 
 ## 📁 Estructura de Archivos
 
@@ -17,11 +17,10 @@ frontend/
 │   ├── _app.js              # App wrapper Next.js
 │   └── index.js             # Componente principal QR Scanner
 ├── 📁 utils/
-│   ├── logger.js            # Logger para proceso principal
-│   └── clientLogger.js      # Logger para renderer process
+│   └── logger.js            # Logger para proceso principal
 ├── 📄 next.config.js        # Configuración Next.js
 ├── 📄 tailwind.config.js    # Configuración Tailwind CSS
-└── 📁 .env files           # Configuraciones por entorno
+└── 📄 ../.env.*             # Configuraciones por entorno (root dir)
 ```
 
 ## 🏗️ Arquitectura de Componentes
@@ -32,8 +31,8 @@ frontend/
 - Crear y gestionar BrowserWindow
 - Configurar seguridad (contextIsolation, nodeIntegration)
 - Manejar IPC communication
-- Realizar llamadas HTTP al backend API
-- Gestionar permisos de cámara y media
+- Realizar llamadas HTTP al backend API para tokens JWT
+- Verificar estado de conexión con backend
 
 // Configuración de seguridad
 webPreferences: {
@@ -44,24 +43,26 @@ webPreferences: {
   enableRemoteModule: false,   // Seguridad adicional
 }
 
-// Optimizaciones de rendimiento  
+// Optimizaciones de rendimiento
 app.disableHardwareAcceleration();  // Evitar crashes GPU
-app.commandLine.appendSwitch('--enable-media-stream');
+app.commandLine.appendSwitch('--disable-gpu');
 ```
 
 ### 2. IPC Handlers (Inter-Process Communication)
 ```javascript
-// Handlers disponibles
-ipcMain.handle('get-app-version')        // Versión de la app
-ipcMain.handle('quit-app')               // Cerrar aplicación
-ipcMain.handle('db-test-connection')     // Test conexión DB
-ipcMain.handle('db-process-qr')          // Procesar QR via API
-ipcMain.handle('db-connect')             // Reconectar DB
-ipcMain.handle('db-check-connection')    // Status backend
-ipcMain.handle('api-status')             // Estado API
+// Handlers disponibles (frontend/public/main.js)
+ipcMain.handle('get-app-version')      // Versión de la app
+ipcMain.handle('quit-app')             // Cerrar aplicación
+ipcMain.handle('db-check-connection')  // Health check backend
+ipcMain.handle('api-status')           // Estado API
 
-// Todas las llamadas HTTP se realizan desde el main process
-// por seguridad y para evitar CORS issues
+// ELIMINADOS en v2.0.0:
+// - db-test-connection (obsoleto)
+// - db-process-qr (funcionalidad antigua de lectura QR)
+// - db-connect (obsoleto)
+
+// Todas las llamadas HTTP se realizan desde el renderer process
+// usando fetch() directo desde React components
 ```
 
 ### 3. Preload Script (public/preload.js)
@@ -70,76 +71,86 @@ ipcMain.handle('api-status')             // Estado API
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  database: {
-    processQR: (qrData) => ipcRenderer.invoke('db-process-qr', qrData),
-    checkConnection: () => ipcRenderer.invoke('db-check-connection'),
-  },
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
-  getVersion: () => ipcRenderer.invoke('get-app-version')
+  checkConnection: () => ipcRenderer.invoke('db-check-connection')
 });
+
+// El renderer process usa fetch() directo para obtener tokens
+// No se requieren IPC handlers para llamadas API simples
 ```
 
 ### 4. React Component Principal (pages/index.js)
 ```javascript
-// Estado principal del componente
-const [isScanning, setIsScanning] = useState(false);
-const [cameraActive, setCameraActive] = useState(false);
-const [statusMessage, setStatusMessage] = useState('');
-const [devices, setDevices] = useState([]);              // Cámaras disponibles
-const [selectedDevice, setSelectedDevice] = useState(''); // Cámara seleccionada
-const [lastResult, setLastResult] = useState(null);      // Último QR procesado
-const [showConfirmation, setShowConfirmation] = useState(false); // Pantalla confirmación
-const [backendStatus, setBackendStatus] = useState('checking'); // Estado backend
+// Estado principal del componente QR Generator
+const [currentToken, setCurrentToken] = useState(null);       // Token JWT actual
+const [tokenTimestamp, setTokenTimestamp] = useState(null);   // Timestamp creación
+const [timeRemaining, setTimeRemaining] = useState(60);       // Segundos restantes
+const [assistantsCount, setAssistantsCount] = useState(0);    // Número de ayudantes
+const [labOpen, setLabOpen] = useState(false);                // Laboratorio abierto
+const [backendStatus, setBackendStatus] = useState('checking'); // Estado conexión
 
-// Referencias para control directo
-const videoRef = useRef(null);        // Elemento <video>
-const codeReader = useRef(null);      // BrowserQRCodeReader instance
+// Llamadas API usando fetch() directo
+const fetchToken = async () => {
+  const response = await fetch(`${API_BASE_URL}/reader/token`);
+  const data = await response.json();
+  return data;
+};
+
+const fetchAssistantsStatus = async () => {
+  const response = await fetch(`${API_BASE_URL}/door/assistants-status`);
+  const data = await response.json();
+  return data;
+};
 ```
 
-## 🎥 Sistema de Cámara y QR
+## 📱 Sistema de Generación de QR y Tokens JWT
 
-### Camera Initialization Flow
+### Token Generation Flow
 ```javascript
-1. 📷 Enumerar dispositivos de video disponibles
-   └── navigator.mediaDevices.enumerateDevices()
+1. 🔄 Iniciar aplicación
+   ├── Obtener primer token JWT
+   ├── Registrar timestamp de creación
+   └── Mostrar código QR generado
 
-2. 🔍 Configurar polyfills para compatibilidad
-   ├── navigator.mediaDevices (si no existe)
-   ├── getUserMedia (webkit/moz/ms prefixes)
-   └── enumerateDevices fallback
+2. 🔐 Token JWT
+   ├── Generado por backend con secret
+   ├── Contiene: iss (emisor), exp (expiración), iat (emitido)
+   ├── Expiración: 60 segundos desde creación
+   └── Formato: header.payload.signature
 
-3. 🎬 Inicializar stream de video
-   ├── getUserMedia con constraints específicos
-   ├── Resolución: 640x480 ideal, 1280x720 max
-   ├── Frame rate: 15fps ideal, 30fps max
-   └── Asignar stream a <video> element
+3. 🎨 Renderizado QR
+   ├── react-qr-code codifica el token JWT
+   ├── Genera código QR visual (200x200px)
+   ├── Actualización automática cada 60s
+   └── Contador visual de tiempo restante
 
-4. 🔍 Configurar ZXing QR Reader
-   ├── new BrowserQRCodeReader()
-   ├── decodeFromVideoDevice(deviceId, videoElement, callback)
-   └── Polling continuo para detección QR
+4. 📊 Proceso de actualización
+   ├── Verificar tiempo transcurrido cada segundo
+   ├── Si > 60s: Obtener nuevo token
+   ├── Actualizar componente QR
+   └── Reiniciar countdown
 ```
 
-### QR Processing Flow
+### Token Refresh Mechanism
 ```javascript
-1. 📱 QR Detectado por ZXing
-   └── callback recibe result.getText()
+1. ⏱️ Temporizador de actualización (60 segundos)
+   ├── setInterval cada 1 segundo
+   ├── Calcular tiempo restante: 60 - (ahora - timestamp)
+   └── Cuando llega a 0: obtener nuevo token
 
-2. 🛑 Pausar escaneo automáticamente
-   └── Evitar lecturas duplicadas
+2. 🔄 Actualización automática
+   ├── GET /api/reader/token
+   ├── Recibir nuevo JWT
+   ├── Re-renderizar QR
+   ├── Reiniciar countdown
+   └── Logging de actualización
 
-3. 📤 Enviar datos al backend
-   ├── Electron: window.electronAPI.database.processQR()
-   ├── Web: fetch() directo al API
-   └── Incluir timestamp para validación
-
-4. 📊 Procesar respuesta
-   ├── Success: Mostrar pantalla verde/naranja (Entrada/Salida)
-   ├── Error: Mostrar pantalla roja con mensaje
-   └── Auto-hide después de 3 segundos
-
-5. 🔄 Reanudar escaneo automático
-   └── Continuar polling para próximo QR
+3. 📲 Estado visual
+   ├── Verde: Tiempo > 30s (token fresco)
+   ├── Amarillo: 10s < Tiempo < 30s (token envejecido)
+   ├── Rojo: Tiempo < 10s (próxima actualización)
+   └── Número grande de segundos restantes
 ```
 
 ## 🎨 Interfaz de Usuario (React + Tailwind)
@@ -151,118 +162,142 @@ const codeReader = useRef(null);      // BrowserQRCodeReader instance
 
   // Header con título e indicadores
   <Header>
-    - Título del sistema
-    - Indicador estado cámara (verde/rojo)
-    - Indicador estado backend
+    - Título del sistema (QR Generador)
+    - Indicador estado backend (verde/rojo)
+    - Indicador estado token (verde/amarillo/rojo)
+    - Contador de tiempo restante
   </Header>
 
   // Panel principal dividido
   <MainContent>
-    // Panel izquierdo - Vista cámara
-    <CameraPanel>
-      - <video> elemento para stream
-      - Overlay de escaneo (marco punteado)
-      - Selector de cámara (si múltiples)
-      - Botones: Pausar/Reanudar, Reintentar, Salir
-    </CameraPanel>
+    // Panel izquierdo - Código QR
+    <QRDisplayPanel>
+      - Componente react-qr-code
+      - Tamaño: 200x200px mínimo
+      - Actualización automática cada 60s
+      - Contador visual en grande
+      - Fondo blanco con borde redondeado
+    </QRDisplayPanel>
 
-    // Panel derecho - Estado e información  
+    // Panel derecho - Estado e información
     <StatusPanel>
-      - Estado sistema (Backend, Cámara, Escaneando)
-      - Mensaje de estado actual
-      - (Futuro: Historial reciente)
+      - Estado sistema (Backend conectado/desconectado)
+      - Token vigencia restante (segundos)
+      - Información de asistentes disponibles
+      - Mensajes de estado
+      - Timestamp de última actualización
     </StatusPanel>
   </MainContent>
 
-  // Pantalla confirmación overlay (modal)
-  <ConfirmationScreen>
-    - Pantalla completa verde/naranja/roja
-    - Mensaje grande: "ENTRADA" / "SALIDA" / "ERROR"
-    - Nombre del usuario
-    - Timestamp
-    - Auto-hide 3 segundos
-  </ConfirmationScreen>
+  // Control inferior
+  <ControlPanel>
+    - Botones: Mostrar/Ocultar QR, Refrescar Token, Salir
+    - Estado de conexión con API
+  </ControlPanel>
 </div>
 ```
 
 ### Estados Visuales
 ```javascript
-// Estados de cámara
-cameraActive = true  → Indicador verde + video activo
-cameraActive = false → Indicador rojo + placeholder
-
-// Estados de escaneo  
-isScanning = true    → Marco verde pulsante "ESCANEANDO..."
-isScanning = false   → Marco amarillo "PAUSADO"
+// Estados de token
+timeRemaining > 30  → Indicador verde "VIGENTE"
+10 < timeRemaining ≤ 30 → Indicador amarillo "PRÓXIMA ACTUALIZACIÓN"
+timeRemaining ≤ 10  → Indicador rojo "ACTUALIZANDO..."
 
 // Estados de backend
 backendStatus = 'connected'    → "CONECTADO" verde
-backendStatus = 'disconnected' → "DESCONECTADO" rojo  
+backendStatus = 'disconnected' → "DESCONECTADO" rojo
 backendStatus = 'checking'     → "VERIFICANDO..." amarillo
 
-// Pantallas de confirmación
-success + tipo="Entrada" → Pantalla verde
-success + tipo="Salida"  → Pantalla naranja
-success = false          → Pantalla roja
+// Pantalla QR
+QR Generado correctamente → Mostrar código QR nítido
+Error generando token → Mostrar mensaje de error en rojo
+Sin conexión → Mostrar advertencia amarilla
 ```
 
 ## 🔄 Comunicación Frontend ↔ Backend
 
-### Dual Environment Support
+### Direct HTTP Communication
 ```javascript
-// Detección de entorno
-const isElectron = typeof window !== 'undefined' && window.electronAPI;
+// React components usan fetch() directo para APIs
+// No se usa IPC para llamadas HTTP simples
 
-if (isElectron) {
-  // Electron IPC - Via main process
-  const result = await window.electronAPI.database.processQR(qrData);
-} else {
-  // Web Browser - Direct HTTP
-  const response = await fetch(`${API_BASE_URL}/qr/process`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ qrData })
-  });
-}
-```
+// Obtener token JWT
+const fetchToken = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reader/token`);
+    const data = await response.json();
 
-### Backend URL Configuration
-```javascript
-// Configuración dinámica de API
-const getBackendURL = () => {
-  if (isElectron) {
-    // Desde variables de entorno del main process
-    return process.env.API_BASE_URL || 'http://localhost:3001/api';
-  } else {
-    // Desde Next.js environment variables  
-    return process.env.API_BASE_URL || (
-      process.env.NODE_ENV === 'production' 
-        ? 'https://api.lector.lab.informaticauaint.com/api'
-        : 'http://localhost:3001/api'
-    );
+    if (data.success) {
+      setCurrentToken(data.token);
+      setTokenTimestamp(Date.now());
+    }
+  } catch (error) {
+    console.error('Error fetching token:', error);
+  }
+};
+
+// Obtener estado de ayudantes
+const fetchAssistantsStatus = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/door/assistants-status`);
+    const data = await response.json();
+
+    if (data.success) {
+      setAssistantsCount(data.assistantsCount);
+      setLabOpen(data.labOpen);
+    }
+  } catch (error) {
+    console.error('Error fetching assistants:', error);
   }
 };
 ```
 
-### Health Checking
+### Backend URL Configuration
 ```javascript
-// Verificación automática cada 30 segundos
+// Variables de entorno consolidadas en archivos root .env.*
+// next.config.js expone process.env.API_BASE_URL al browser
+
+const API_BASE_URL = process.env.API_BASE_URL || (
+  process.env.NODE_ENV === 'production'
+    ? 'https://api.generador.lab.informaticauaint.com/api'
+    : 'http://localhost:3001/api'
+);
+
+// Desarrollo:  http://localhost:3001/api  (desde .env.dev)
+// Producción:  https://api.generador.lab.informaticauaint.com/api  (desde .env.prod)
+```
+
+### Health Checking y Token Refresh
+```javascript
+// Health check usando IPC de Electron
 const checkBackendConnection = async () => {
   try {
     setBackendStatus('checking');
-    
-    if (isElectron) {
-      const result = await window.electronAPI.database.checkConnection();
+
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      // Electron: usa IPC handler
+      const result = await window.electronAPI.checkConnection();
       setBackendStatus(result.success ? 'connected' : 'disconnected');
     } else {
-      const healthUrl = baseUrl.replace('/api', '/health');
-      const response = await fetch(healthUrl);
+      // Web: usa fetch directo
+      const response = await fetch(`${API_BASE_URL}/../health`);
       setBackendStatus(response.ok ? 'connected' : 'disconnected');
     }
   } catch (error) {
     setBackendStatus('disconnected');
   }
 };
+
+// Token refresh automático cada 60 segundos
+useEffect(() => {
+  const interval = setInterval(async () => {
+    await fetchToken();  // Obtener nuevo token JWT
+    await fetchAssistantsStatus();  // Actualizar estado de ayudantes
+  }, 60000);  // 60 segundos
+
+  return () => clearInterval(interval);
+}, []);
 ```
 
 ## ⚙️ Configuración y Build
@@ -314,12 +349,11 @@ const nextConfig = {
 ### Development Scripts
 ```bash
 # Desarrollo completo (Electron + Next.js)
-npm run dev              # Usa .env.dev
-npm run dev:web-prod-api # Usa .env.prod-api
+npm run dev              # Usa ../.env.dev
+npm run dev:web-prod-api # Usa ../.env.prod-api
 
-# Solo Next.js (para desarrollo web)  
-npm run dev:next         # Usa .env.dev
-npm run dev:prod-api     # Usa .env.prod-api
+# Solo Next.js (para desarrollo web)
+npm run dev:next         # Usa ../.env.dev
 
 # Solo Electron (requiere Next.js ejecutándose)
 npm run dev:electron     # Espera localhost:3020
@@ -329,7 +363,7 @@ npm run dev:electron     # Espera localhost:3020
 ```bash
 # Build Next.js
 npm run build            # Build básico
-npm run build:prod       # Build con .env.prod
+npm run build:prod       # Build con ../.env.prod
 
 # Build Electron completo
 npm run build:electron   # Next.js build + Electron package
@@ -345,13 +379,11 @@ npm run dist             # Create installer
 ```javascript
 // ✅ Implementadas
 nodeIntegration: false           // No Node.js en renderer
-contextIsolation: true          // Contextos aislados  
+contextIsolation: true          // Contextos aislados
 enableRemoteModule: false       // Sin módulo remoto
 preload script                  // API controlada via contextBridge
-
-// ⚠️ Development only
-webSecurity: false              // Solo para cámara local
-allowRunningInsecureContent     // Solo desarrollo
+webSecurity: false              // Para localhost development
+allowRunningInsecureContent: false
 ```
 
 ### Context Bridge Security
@@ -359,9 +391,10 @@ allowRunningInsecureContent     // Solo desarrollo
 // Solo exponer APIs necesarias y controladas
 contextBridge.exposeInMainWorld('electronAPI', {
   // ✅ Métodos seguros específicos
-  database: { processQR, checkConnection },
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   quitApp: () => ipcRenderer.invoke('quit-app'),
-  
+  checkConnection: () => ipcRenderer.invoke('db-check-connection'),
+
   // ❌ No exponer APIs genéricas
   // ipcRenderer: ipcRenderer  // NUNCA hacer esto
 });
@@ -391,69 +424,84 @@ logger.error('❌ Error procesando QR via API:', error.message);
 
 ## 🎯 Performance Optimizations
 
-### Camera Performance
+### GPU/Hardware Optimization
 ```javascript
-// Configuración optimizada para QR scanning
-const constraints = {
-  video: {
-    width: { ideal: 640, max: 1280 },    // Balance calidad/rendimiento
-    height: { ideal: 480, max: 720 },
-    frameRate: { ideal: 15, max: 30 }    // 15fps suficiente para QR
-  }
-};
-```
-
-### GPU/Hardware Optimization  
-```javascript
-// Evitar crashes en sistemas con GPU problemáticas
+// Evitar crashes en sistemas con GPU problemáticas (main.js)
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('--disable-gpu');
 app.commandLine.appendSwitch('--disable-gpu-sandbox');
 ```
 
-### Memory Management
+### Interval Management
 ```javascript
-// Cleanup en componentWillUnmount
+// Cleanup de intervalos en componente React
 useEffect(() => {
+  // Token refresh cada 60 segundos
+  const tokenInterval = setInterval(fetchToken, 60000);
+
+  // Assistants status cada 5 segundos
+  const assistantsInterval = setInterval(fetchAssistantsStatus, 5000);
+
+  // Cleanup al desmontar
   return () => {
-    stopScanning();                    // Detener polling QR
-    if (videoRef.current?.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks();
-      tracks.forEach(track => track.stop()); // Liberar cámara
-    }
+    clearInterval(tokenInterval);
+    clearInterval(assistantsInterval);
   };
 }, []);
 ```
 
-## 🐛 Error Handling
-
-### Camera Errors
+### React QR Code Optimization
 ```javascript
-// Tipos de error manejados
-'NotAllowedError'     → 'Permisos de cámara denegados'
-'NotFoundError'       → 'Cámara no encontrada'  
-'NotReadableError'    → 'Cámara en uso por otra aplicación'
-'OverconstrainedError' → 'Configuración de cámara no compatible'
+// react-qr-code se actualiza automáticamente cuando cambia el token
+<QRCode
+  value={currentToken || ''}  // Token JWT como string
+  size={200}                   // Tamaño fijo para performance
+  level="M"                    // Error correction medium
+/>
 ```
 
-### QR Processing Errors
+## 🐛 Error Handling
+
+### Token Generation Errors
 ```javascript
-// Manejo de errores en procesamiento
+// Tipos de error manejados
+'Network Error'    → 'No hay conexión con el servidor'
+'Timeout'          → 'Servidor tardó demasiado en responder'
+'Invalid Token'    → 'Token JWT generado inválido'
+'Rate Limited'     → 'Demasiadas solicitudes - esperar'
+```
+
+### Token Refresh Errors
+```javascript
+// Manejo de errores en actualización de token
 try {
-  const result = await processQRData(qrData);
-  // ... handle success
+  const newToken = await getToken();
+  setCurrentToken(newToken.token);
 } catch (error) {
-  logger.error('Error procesando QR:', error.message);
-  setStatusMessage('Error procesando QR');
-  // Continuar escaneo después del error
+  logger.error('Error refrescando token:', error.message);
+  setStatusMessage('Error actualizando token QR');
+  // Reintentar en próxima actualización automática
 }
 ```
 
-### Network/Backend Errors  
+### Network/Backend Errors
 ```javascript
 // Fallback cuando backend no disponible
 if (backendStatus === 'disconnected') {
-  setStatusMessage('⚠️ Backend desconectado - Reintentando...');
+  setStatusMessage('⚠️ Servidor desconectado - Reintentando...');
+  // Mostrar último token válido si existe
   // Continuar verificaciones periódicas
+}
+```
+
+### Assistant Status Fetching Errors
+```javascript
+// Manejo de errores al obtener estado de asistentes
+try {
+  const assistants = await getAssistantsStatus();
+  setAssistantsStatus(assistants.data || []);
+} catch (error) {
+  logger.error('Error obteniendo estado de asistentes:', error.message);
+  setStatusMessage('No se pudo obtener información de asistentes');
 }
 ```

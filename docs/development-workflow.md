@@ -2,7 +2,7 @@
 
 ## Visión General
 
-Esta guía describe el flujo de trabajo completo para desarrollar, testear y desplegar el sistema QR Lector, desde setup inicial hasta deployment en producción.
+Esta guía describe el flujo de trabajo completo para desarrollar, testear y desplegar el sistema **QR Generator**, desde setup inicial hasta deployment en producción.
 
 ## 🚀 Setup Inicial
 
@@ -18,20 +18,14 @@ tree -L 2
 
 ### 2. Environment Setup
 ```bash
-# Backend environment
-cd backend
+# Variables de entorno consolidadas en root
 cp .env.dev.example .env.dev
-nano .env.dev  # Configurar credenciales MySQL
+nano .env.dev  # Configurar credenciales MySQL y READER_QR_SECRET
 
-# Frontend environment  
-cd ../frontend
-cp .env.dev.example .env.dev
-nano .env.dev  # Verificar API_BASE_URL
-
-# Docker environment (opcional)
-cd ..
-cp .env.docker.dev.example .env.docker.dev
-nano .env.docker.dev  # Configurar MySQL Docker
+# Secciones en .env.dev:
+# [BACKEND] - PORT, READER_QR_SECRET, STATION_ID
+# [FRONTEND] - API_BASE_URL
+# [DATABASE] - MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD
 ```
 
 ### 3. Dependencias
@@ -95,22 +89,17 @@ npm run dev:web-prod-api
 ```bash
 cd backend
 
-# Test conexión DB
+# Test health check
 curl http://localhost:3001/health
-curl http://localhost:3001/api/db/test
 
-# Test procesamiento QR
-curl -X POST http://localhost:3001/api/qr/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "qrData": {
-      "name": "Juan",
-      "surname": "Pérez", 
-      "email": "test@uai.cl",
-      "timestamp": '$(date +%s000)',
-      "tipoUsuario": "ESTUDIANTE"
-    }
-  }'
+# Test token generation
+curl http://localhost:3001/api/reader/token
+
+# Test assistants status
+curl http://localhost:3001/api/door/assistants-status
+
+# Test version
+curl http://localhost:3001/api/version
 ```
 
 ### Frontend Testing
@@ -128,15 +117,17 @@ npm run build
 npm run start
 ```
 
-### Database Testing
+### Database Testing (Solo Desarrollo)
 ```bash
-# Conectar a MySQL Docker
+# Conectar a MySQL Docker (solo en desarrollo local)
 docker-compose -f docker-compose.dev.yml exec mysql-dev mysql -u root -p
 
-# Query básicos
+# Query básicos (read-only)
 USE registro_qr;
 SHOW TABLES;
-SELECT * FROM qr_registros LIMIT 5;
+SELECT * FROM registros WHERE fecha = CURDATE() LIMIT 10;
+
+# Nota: La base de datos de producción es externa y gestionada por Flask
 ```
 
 ## 📝 Logging y Monitoring
@@ -218,8 +209,11 @@ docker-compose -f docker-compose.dev.yml exec api-dev sh
 docker build -f backend/Dockerfile.prod -t qr-backend:latest backend/
 docker build -f frontend/Dockerfile.prod -t qr-frontend:latest frontend/
 
-# Deploy producción
+# Deploy producción (sin MySQL - usa base de datos externa)
 docker-compose -f docker-compose.prod.yml up -d
+
+# Nota: MySQL no está incluido en docker-compose.prod.yml
+# La base de datos se conecta vía MYSQL_HOST en .env.prod
 ```
 
 ## 📊 Code Quality
@@ -310,28 +304,29 @@ docker-compose -f docker-compose.prod.yml up -d
 netstat -ano | findstr :3001
 taskkill /PID <PID> /F
 
-# Base de datos no conecta
+# Base de datos no conecta (desarrollo)
 docker-compose -f docker-compose.dev.yml logs mysql-dev
 docker-compose -f docker-compose.dev.yml restart mysql-dev
 
 # Variables entorno no cargadas
-cat backend/.env.dev
-echo $NODE_ENV
+cat .env.dev
+cd backend && npm run dev  # Debe cargar ../.env.dev
 ```
 
-### Frontend Issues  
+### Frontend Issues
 ```bash
 # Next.js no conecta a API
 curl http://localhost:3001/health
-cat frontend/.env.dev
+cat .env.dev  # Verificar API_BASE_URL
 
 # Electron no inicia
-rm -rf frontend/.next
+cd frontend
+rm -rf .next
 npm run build
 
-# Cámara no funciona
-# Verificar permisos HTTPS/localhost
-# Verificar allowRunningInsecureContent
+# QR no se muestra
+# Verificar que token JWT se está recibiendo correctamente
+# Verificar que react-qr-code está instalado
 ```
 
 ### Docker Issues
@@ -349,63 +344,62 @@ docker system prune -f
 docker volume prune -f
 ```
 
-## 📱 QR Testing Workflow
+## 📱 QR Token Testing Workflow
 
-### Generar QRs de Prueba
-```javascript
-// QR válido para testing
-const qrData = {
-  name: "Juan",
-  surname: "Pérez",
-  email: "juan.perez@uai.cl", 
-  timestamp: Date.now(),
-  tipoUsuario: "ESTUDIANTE"
-};
+### Testing JWT Token Generation
+```bash
+# 1. Obtener token JWT
+curl http://localhost:3001/api/reader/token
 
-console.log(JSON.stringify(qrData));
-// Generar QR con este JSON
+# Response esperado:
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresIn": 60,
+  "timestamp": "2025-01-22T10:30:00.000Z"
+}
+
+# 2. Verificar que el token cambia cada 60 segundos
+# 3. Validar que el token está firmado correctamente
 ```
 
-### Testing QR Flow
-```bash
-# 1. Usuario debe estar en DB (usuarios_estudiantes/usuarios_permitidos)
-# 2. QR timestamp debe ser fresco (±15 segundos)
-# 3. Test procesamiento:
+### Validating JWT Payload
+```javascript
+// Decodificar token JWT (sin verificar firma)
+const jwt = require('jsonwebtoken');
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
 
-curl -X POST http://localhost:3001/api/qr/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "qrData": {
-      "name": "Juan",
-      "surname": "Pérez",
-      "email": "juan.perez@uai.cl",
-      "timestamp": '$(date +%s000)',
-      "tipoUsuario": "ESTUDIANTE"
-    }
-  }'
+const decoded = jwt.decode(token);
+console.log(decoded);
+// Expected: { station_id: "1", timestamp: 1705318245123, type: "reader_token", iat: ..., exp: ... }
 ```
 
 ## 📋 Pre-Deployment Checklist
 
 ### Development Ready ✅
 - [ ] Backend corre sin errores en development
-- [ ] Frontend Electron corre correctamente  
-- [ ] Database connection establecida
-- [ ] QR processing funciona end-to-end
+- [ ] Frontend Electron corre correctamente
+- [ ] Database connection establecida (read-only)
+- [ ] JWT token generation funciona
+- [ ] QR code se muestra correctamente
+- [ ] Assistants status se actualiza
 - [ ] Logs solo muestran en development
-- [ ] Variables .env configuradas correctamente
+- [ ] Variables .env.dev configuradas correctamente
 - [ ] .gitignore protege archivos sensibles
 
 ### Production Ready ✅
 - [ ] Build producción exitoso (frontend + backend)
 - [ ] Variables .env.prod configuradas con datos seguros
+- [ ] READER_QR_SECRET único en producción
 - [ ] CORS origins apuntan a dominio correcto
-- [ ] Database credentials seguros
+- [ ] MYSQL_HOST apunta a base de datos externa (Flask)
+- [ ] Database credentials seguros (read-only)
 - [ ] Docker images build correctamente
 - [ ] Health checks responden OK
 - [ ] HTTPS certificados configurados
 - [ ] Rate limiting configurado
 - [ ] Error handling robusto
+- [ ] JWT tokens se generan correctamente
 
 ## 🛠️ Maintenance Tasks
 
@@ -419,20 +413,22 @@ cd frontend && npm audit && npm update
 docker system prune -f
 docker volume prune -f
 
-# Backup database
-docker-compose -f docker-compose.prod.yml exec mysql-prod mysqldump -u root -p registro_qr > backup-$(date +%Y%m%d).sql
+# Nota: El backup de base de datos se maneja en el proyecto Flask externo
+# Este proyecto solo consulta la base de datos (read-only)
 ```
 
-### Performance Monitoring  
+### Performance Monitoring
 ```bash
 # Resource usage
 docker stats
 
-# Database performance
+# Database performance (solo en desarrollo local)
 docker-compose -f docker-compose.dev.yml exec mysql-dev mysql -u root -p -e "SHOW PROCESSLIST;"
 
 # API response times
-curl -w "@curl-format.txt" -o /dev/null -s http://localhost:3001/health
+time curl http://localhost:3001/health
+time curl http://localhost:3001/api/reader/token
+time curl http://localhost:3001/api/door/assistants-status
 ```
 
 ## 🎯 Development Best Practices

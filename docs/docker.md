@@ -2,7 +2,11 @@
 
 ## Visión General
 
-El sistema QR Lector está completamente dockerizado con configuraciones separadas para desarrollo y producción. Cada componente (backend API, frontend web, MySQL) se ejecuta en contenedores independientes con orchestración via Docker Compose.
+El sistema QR Generator está completamente dockerizado con configuraciones separadas para desarrollo y producción. El backend API y frontend Electron se ejecutan en contenedores independientes con orchestración via Docker Compose.
+
+**Nota importante sobre la base de datos**:
+- **Desarrollo**: MySQL incluido en docker-compose.dev.yml para desarrollo local
+- **Producción**: MySQL gestionado externamente por proyecto Flask (no incluido en docker-compose.prod.yml)
 
 ## 📁 Estructura Docker
 
@@ -23,10 +27,8 @@ El sistema QR Lector está completamente dockerizado con configuraciones separad
 
 ### Desarrollo Completo
 ```bash
-# Configurar environment
-cp .env.docker.dev.example .env.docker.dev
-cp backend/.env.dev.example backend/.env.dev
-cp frontend/.env.dev.example frontend/.env.dev
+# Configurar environment (consolidado en root)
+cp .env.dev.example .env.dev
 
 # Levantar todos los servicios
 docker-compose -f docker-compose.dev.yml up -d
@@ -46,10 +48,11 @@ docker-compose -f docker-compose.dev.yml exec mysql-dev mysql -u root -p -e "SHO
 
 ### Producción
 ```bash
-# Setup production environment
-cp .env.docker.prod.example .env.docker.prod
-cp backend/.env.prod.example backend/.env.prod
-cp frontend/.env.prod.example frontend/.env.prod
+# Setup production environment (consolidado en root)
+cp .env.prod.example .env.prod
+
+# IMPORTANTE: Configurar MYSQL_HOST para apuntar a base de datos externa
+# La base de datos NO está incluida en docker-compose.prod.yml
 
 # Deploy with pre-built images
 docker-compose -f docker-compose.prod.yml up -d
@@ -59,16 +62,16 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ### docker-compose.dev.yml
 ```yaml
-version: '3.8'
-
 services:
   mysql-dev:
     image: mysql:8.0
     container_name: qr-mysql-dev
+    env_file:
+      - .env.dev
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DB}
-      MYSQL_USER: ${MYSQL_USER} 
+      MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "${MYSQL_PORT:-3306}:3306"
@@ -86,7 +89,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: qr-api-dev
     env_file:
-      - ./backend/.env.dev
+      - .env.dev
     environment:
       MYSQL_HOST: mysql-dev  # Override para conexión interna
     ports:
@@ -105,7 +108,7 @@ services:
       dockerfile: Dockerfile.dev
     container_name: qr-frontend-dev
     env_file:
-      - ./frontend/.env.dev
+      - .env.dev
     ports:
       - "3020:3020"
     volumes:
@@ -130,62 +133,37 @@ volumes:
 
 ### docker-compose.prod.yml
 ```yaml
-version: '3.8'
-
+# Production environment with pre-built images
+# Database is managed externally - not included in production deployment
 services:
-  mysql-prod:
-    image: mysql:8.0
-    container_name: qr-mysql-prod
-    environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DB}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    ports:
-      - "${MYSQL_PORT:-3306}:3306"
-    volumes:
-      - mysql_prod_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
-    restart: unless-stopped
-
   api-prod:
     image: ghcr.io/${GITHUB_REPOSITORY}/qr-backend:latest
     container_name: qr-api-prod
     env_file:
-      - ./backend/.env.prod
-    environment:
-      MYSQL_HOST: mysql-prod
+      - .env.prod
     ports:
       - "3001:3001"
-    depends_on:
-      mysql-prod:
-        condition: service_healthy
     restart: unless-stopped
 
   frontend-prod:
     image: ghcr.io/${GITHUB_REPOSITORY}/qr-frontend:latest
     container_name: qr-frontend-prod
     env_file:
-      - ./frontend/.env.prod
+      - .env.prod
     ports:
       - "3020:3020"
     depends_on:
       - api-prod
     restart: unless-stopped
-
-volumes:
-  mysql_prod_data:
 ```
 
 **Características Producción:**
 - **Pre-built Images**: Imágenes desde GitHub Container Registry
+- **External Database**: MySQL gestionado por proyecto Flask separado (MYSQL_HOST en .env.prod)
 - **Security**: Sin volúmenes montados, usuario no-root
 - **Restart Policy**: Reinicio automático en fallas
 - **Optimized**: Imágenes multi-stage optimizadas
+- **No MySQL Container**: La base de datos de producción es externa
 
 ## 🐳 Dockerfiles
 
@@ -294,20 +272,40 @@ CMD ["npm", "run", "start:prod"]
 
 ## 🔧 Variables de Entorno Docker
 
-### .env.docker.dev
+Todas las variables de entorno están consolidadas en archivos `.env.*` en el directorio raíz del proyecto.
+
+### .env.dev (Desarrollo)
 ```env
+# [DATABASE] - MySQL local en docker-compose
+MYSQL_HOST=localhost  # o mysql-dev si se usa dentro de Docker
 MYSQL_USER=root
 MYSQL_PASSWORD=your_mysql_password_here
 MYSQL_DB=registro_qr
 MYSQL_PORT=3306
+
+# [BACKEND]
+PORT=3001
+READER_QR_SECRET=dev_secret_key_here
+
+# [FRONTEND]
+API_BASE_URL=http://localhost:3001/api
 ```
 
-### .env.docker.prod
+### .env.prod (Producción)
 ```env
-MYSQL_USER=qr_user
-MYSQL_PASSWORD=secure_docker_password
+# [DATABASE] - MySQL externo gestionado por Flask
+MYSQL_HOST=10.0.3.54  # Base de datos externa
+MYSQL_USER=root
+MYSQL_PASSWORD=production_password
 MYSQL_DB=registro_qr
 MYSQL_PORT=3306
+
+# [BACKEND]
+PORT=3001
+READER_QR_SECRET=production_secret_key_here
+
+# [FRONTEND]
+API_BASE_URL=https://api.generador.lab.informaticauaint.com/api
 ```
 
 ## 📝 Comandos Útiles
@@ -342,8 +340,7 @@ docker-compose -f docker-compose.prod.yml ps
 docker-compose -f docker-compose.prod.yml pull
 docker-compose -f docker-compose.prod.yml up -d
 
-# Backup database
-docker-compose -f docker-compose.prod.yml exec mysql-prod mysqldump -u root -p registro_qr > backup.sql
+# Nota: El backup de base de datos se maneja en el proyecto Flask externo
 ```
 
 ### Maintenance Commands
@@ -382,12 +379,13 @@ ports:
 
 ### Service Discovery
 ```javascript
-// API conecta a MySQL via hostname interno
-MYSQL_HOST=mysql-dev  // En desarrollo
-MYSQL_HOST=mysql-prod // En producción
+// API conecta a MySQL
+MYSQL_HOST=mysql-dev      // Desarrollo: container interno
+MYSQL_HOST=10.0.3.54      // Producción: base de datos externa
 
 // Frontend conecta a API via external port
-API_BASE_URL=http://localhost:3001/api
+API_BASE_URL=http://localhost:3001/api  // Desarrollo
+API_BASE_URL=https://api.generador.lab.informaticauaint.com/api  // Producción
 ```
 
 ## 📊 Health Checks y Monitoring
@@ -458,13 +456,13 @@ COPY --from=base --chown=nodejs:nodejs /app/.next ./.next
 
 ### Environment Variables
 ```yaml
-# Usar env_file para secrets
+# Usar env_file para secrets (consolidado en root)
 env_file:
-  - ./backend/.env.prod
+  - .env.prod
 
-# Override específico para Docker
+# Override específico para Docker (solo desarrollo)
 environment:
-  MYSQL_HOST: mysql-prod
+  MYSQL_HOST: mysql-dev  # Solo en desarrollo, producción usa .env.prod
 ```
 
 ### Network Security

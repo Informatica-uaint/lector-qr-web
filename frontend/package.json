@@ -1,19 +1,19 @@
 {
-  "name": "qr-lector-electron",
-  "version": "1.5.1",
-  "description": "Lector QR moderno con Electron + React para laboratorio informática",
+  "name": "qr-generator-electron",
+  "version": "2.0.0",
+  "description": "Generador de QR dinámico con Electron + React para laboratorio informática",
   "main": "public/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:next\" \"npm run dev:electron\"",
-    "dev:next": "env-cmd -f .env.dev next dev -p 3020 -H 0.0.0.0",
+    "dev:next": "env-cmd -f ../.env.dev next dev -p 3020 -H 0.0.0.0",
     "dev:electron": "wait-on http://localhost:3020 && electron .",
-    "dev:prod-api": "env-cmd -f .env.prod-api next dev -p 3020 -H 0.0.0.0",
+    "dev:prod-api": "env-cmd -f ../.env.prod-api next dev -p 3020 -H 0.0.0.0",
     "dev:web-prod-api": "concurrently \"npm run dev:prod-api\" \"npm run dev:electron\"",
     "build": "next build",
-    "build:prod": "env-cmd -f .env.prod next build",
+    "build:prod": "env-cmd -f ../.env.prod next build",
     "build:electron": "npm run build && electron-builder",
     "start": "next start",
-    "start:prod": "env-cmd -f .env.prod next start",
+    "start:prod": "env-cmd -f ../.env.prod next start",
     "electron": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
@@ -23,7 +23,7 @@
   },
   "keywords": [
     "qr",
-    "scanner",
+    "generator",
     "electron",
     "nextjs",
     "laboratorio"
@@ -38,7 +38,6 @@
     "wait-on": "^7.0.1"
   },
   "dependencies": {
-    "@zxing/library": "^0.20.0",
     "autoprefixer": "^10.4.16",
     "axios": "^1.11.0",
     "dotenv": "^16.3.1",
@@ -51,8 +50,8 @@
     "tailwindcss": "^3.3.5"
   },
   "build": {
-    "appId": "com.uai.qr-lector",
-    "productName": "QR Lector Lab",
+    "appId": "com.uai.qr-generator",
+    "productName": "QR Generator Lab",
     "directories": {
       "output": "dist"
     },
